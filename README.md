@@ -15,3 +15,4 @@ The Aviator Game page runs the SkyRush interface as an isolated, local demo. Its
 wallet balance, recent results, and other players are simulated in the browser; no game API or
 socket connection is used. Aviator mode settings remain available under Games → Aviator Settings.
 # veronova-admin-panel
+# veronova-admin-panel
