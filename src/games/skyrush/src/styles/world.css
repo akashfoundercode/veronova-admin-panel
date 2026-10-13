@@ -1,0 +1,1203 @@
+/* ==========================================================================
+   WORLD VERTICALLY STACKED BACKGROUND (100% FULL RUNWAY + PROCEDURAL SKY)
+   ========================================================================== */
+.world-viewport {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: #000206;
+    z-index: 1;
+}
+
+.world-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    transform-origin: center bottom;
+    will-change: transform;
+}
+
+/* 1. Deep Space backdrop behind looping night frames */
+.world-deepspace {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4500%;
+    background: linear-gradient(180deg, #000104 0%, #030610 50%, #000104 100%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Continuous seamless looping night sky frames (nightframe.png) */
+.world-night-sky-frame {
+    position: absolute;
+    left: 0;
+    right: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.night-sky-loop-art {
+    position: absolute;
+    inset: 0;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center bottom;
+    pointer-events: none;
+}
+
+/* Distant Earth View from Deep Space Orbit */
+.space-distant-earth-wrapper {
+    position: absolute;
+    left: 50%;
+    bottom: -16%;
+    width: clamp(260px, 44vw, 560px);
+    aspect-ratio: 1;
+    z-index: 5;
+    pointer-events: none;
+    transition: transform 0.3s ease-out;
+    animation: earthOrbitalGlow 6s ease-in-out infinite alternate;
+}
+
+.space-distant-earth-globe {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    user-select: none;
+    filter: drop-shadow(0 -10px 30px rgba(50, 150, 255, 0.45)) drop-shadow(0 0 60px rgba(30, 100, 220, 0.25));
+}
+
+.earth-atmosphere-glow {
+    position: absolute;
+    inset: -6%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 45%, transparent 62%, rgba(88, 180, 255, 0.25) 75%, transparent 92%);
+    pointer-events: none;
+    filter: blur(8px);
+}
+
+@keyframes earthOrbitalGlow {
+    0% {
+        filter: drop-shadow(0 -8px 25px rgba(50, 150, 255, 0.4));
+    }
+
+    100% {
+        filter: drop-shadow(0 -12px 40px rgba(70, 180, 255, 0.6));
+    }
+}
+
+.world-high-sky {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.night-frame-art {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center bottom;
+    pointer-events: none;
+    user-select: none;
+}
+
+.night-frame-repeat {
+    position: absolute;
+    inset: 0;
+    background-repeat: no-repeat;
+    background-position: center bottom;
+    background-size: 100% 100%;
+    pointer-events: none;
+}
+
+.high-sky-horizon {
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    bottom: 8%;
+    height: 18%;
+    background: linear-gradient(180deg, transparent, rgba(255, 195, 120, 0.55), transparent);
+    filter: blur(18px);
+}
+
+.high-sky-cloudbank {
+    position: absolute;
+    left: -8%;
+    right: -8%;
+    bottom: -12%;
+    height: 44%;
+    opacity: .78;
+    filter: blur(13px);
+    background: radial-gradient(ellipse at 8% 70%, rgba(255, 214, 184, .72) 0 12%, transparent 35%), radial-gradient(ellipse at 38% 82%, rgba(229, 204, 195, .65) 0 14%, transparent 37%), radial-gradient(ellipse at 74% 66%, rgba(255, 198, 163, .7) 0 13%, transparent 34%), radial-gradient(ellipse at 98% 82%, rgba(198, 197, 205, .6) 0 12%, transparent 32%);
+    animation: cloudDrift 55s linear infinite;
+}
+
+.meteor-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.meteor {
+    position: absolute;
+    height: 2px;
+    border-radius: 50%;
+    opacity: 0;
+    transform: rotate(-28deg);
+    transform-origin: right center;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .95));
+    filter: drop-shadow(0 0 4px #b9dcff);
+    animation: meteorShoot 7s ease-in infinite;
+}
+
+@keyframes meteorShoot {
+
+    0%,
+    72% {
+        opacity: 0;
+        transform: translate3d(0, 0, 0) rotate(-28deg);
+    }
+
+    74% {
+        opacity: .9;
+    }
+
+    84% {
+        opacity: 0;
+        transform: translate3d(210px, 105px, 0) rotate(-28deg);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate3d(210px, 105px, 0) rotate(-28deg);
+    }
+}
+
+/* 2. Procedural Starry Sky (Frame 2: 100% viewport height stacked directly above runway) */
+.world-sky.procedural-sky {
+    position: absolute;
+    bottom: 50%;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: radial-gradient(circle at 50% 100%, #151e3d 0%, #090e24 55%, #03050c 100%);
+    overflow: hidden;
+}
+
+.world-sky.airport-sky {
+    position: absolute;
+    bottom: 50%;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: transparent;
+    overflow: hidden;
+}
+
+/* Single Moon Planet Above Runway (Compact & Elegantly Proportioned) */
+.runway-single-moon {
+    position: absolute;
+    top: 9%;
+    right: 18%;
+    width: clamp(52px, 7vw, 84px);
+    aspect-ratio: 1;
+    z-index: 10;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.moon-planet-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    user-select: none;
+    filter: drop-shadow(0 0 22px rgba(180, 215, 255, 0.65)) drop-shadow(0 0 45px rgba(140, 190, 255, 0.35));
+    animation: moonFloating 6s ease-in-out infinite alternate;
+}
+
+.moon-glow-aura {
+    position: absolute;
+    inset: -25%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(180, 220, 255, 0.28) 0%, rgba(130, 180, 255, 0.1) 45%, transparent 72%);
+    pointer-events: none;
+    filter: blur(14px);
+}
+
+@keyframes moonFloating {
+    0% {
+        transform: translateY(0) scale(1);
+    }
+
+    100% {
+        transform: translateY(-6px) scale(1.02);
+    }
+}
+
+.world-runway-backdrop {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: transparent;
+}
+
+.runway-night-art {
+    position: absolute;
+    inset: 0;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center bottom;
+}
+
+.airport-sun {
+    position: absolute;
+    width: clamp(54px, 8vw, 105px);
+    aspect-ratio: 1;
+    right: 17%;
+    bottom: 18%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 35%, #fff7dc, #ffd6a0 60%, #f3a881);
+    box-shadow: 0 0 42px 20px rgba(255, 205, 153, .3);
+}
+
+.airport-clouds {
+    position: absolute;
+    inset: 12% -15% 8%;
+    opacity: .45;
+    background: radial-gradient(ellipse at 12% 44%, #f7e9df 0 3%, transparent 14%), radial-gradient(ellipse at 32% 58%, #fff0e3 0 4%, transparent 17%), radial-gradient(ellipse at 67% 34%, #fff4e8 0 3%, transparent 15%), radial-gradient(ellipse at 91% 52%, #f8e4da 0 4%, transparent 16%);
+    filter: blur(10px);
+    animation: cloudDrift 70s linear infinite;
+}
+
+.airport-distant-ridge {
+    position: absolute;
+    left: -5%;
+    right: -5%;
+    bottom: 5%;
+    height: 24%;
+    background: linear-gradient(180deg, rgba(83, 99, 104, .25), #526168 76%, #454e50);
+    clip-path: polygon(0 65%, 8% 51%, 15% 61%, 24% 39%, 34% 53%, 42% 34%, 50% 56%, 60% 37%, 70% 55%, 78% 29%, 87% 52%, 100% 35%, 100% 100%, 0 100%);
+}
+
+.airport-city {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 9%;
+    height: 24%;
+    opacity: .88;
+    background: linear-gradient(180deg, transparent 0 18%, #596260 18% 100%);
+    clip-path: polygon(0 46%, 4% 46%, 4% 20%, 7% 20%, 7% 43%, 11% 43%, 11% 8%, 14% 8%, 14% 36%, 19% 36%, 19% 25%, 24% 25%, 24% 44%, 29% 44%, 29% 4%, 32% 4%, 32% 45%, 38% 45%, 38% 22%, 43% 22%, 43% 43%, 51% 43%, 51% 0, 54% 0, 54% 42%, 60% 42%, 60% 16%, 65% 16%, 65% 45%, 70% 45%, 70% 28%, 75% 28%, 75% 44%, 82% 44%, 82% 13%, 86% 13%, 86% 42%, 91% 42%, 91% 23%, 96% 23%, 96% 45%, 100% 45%, 100% 100%, 0 100%);
+}
+
+.airport-terminal {
+    position: absolute;
+    left: 8%;
+    bottom: 8%;
+    width: 39%;
+    height: 17%;
+    border-top: 3px solid rgba(245, 211, 178, .8);
+    background: linear-gradient(180deg, rgba(78, 83, 79, .92), #414b4a);
+    clip-path: polygon(0 24%, 100% 0, 100% 100%, 0 100%);
+    box-shadow: 0 0 20px rgba(0, 0, 0, .25);
+}
+
+.airport-terminal i {
+    display: inline-block;
+    width: 8%;
+    height: 32%;
+    margin: 11% 1% 0 4%;
+    background: #ffd99e;
+    opacity: .75;
+    box-shadow: 0 0 8px rgba(255, 199, 130, .6);
+}
+
+/* Cosmic Nebulae Glows */
+.sky-nebula {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px);
+    pointer-events: none;
+}
+
+.nebula-1 {
+    width: 320px;
+    height: 180px;
+    left: 20%;
+    top: 15%;
+    background: radial-gradient(circle, rgba(52, 180, 255, 0.18) 0%, transparent 70%);
+}
+
+.nebula-2 {
+    width: 400px;
+    height: 220px;
+    right: 10%;
+    top: 35%;
+    background: radial-gradient(circle, rgba(145, 62, 248, 0.15) 0%, transparent 70%);
+}
+
+/* Twinkling Stars */
+.sky-stars-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.sky-star {
+    position: absolute;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 3px #ffffff, 0 0 6px rgba(147, 197, 253, 0.8);
+    animation: starTwinkle ease-in-out infinite alternate;
+}
+
+@keyframes starTwinkle {
+    0% {
+        opacity: 0.2;
+        transform: scale(0.8);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1.3);
+    }
+}
+
+/* Passing Cloud Wisps */
+.sky-cloud-wisp {
+    position: absolute;
+    height: 35px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04) 30%, rgba(255, 255, 255, 0.07) 60%, transparent 100%);
+    border-radius: 50%;
+    filter: blur(8px);
+    pointer-events: none;
+}
+
+.cloud-wisp-1 {
+    width: 60%;
+    top: 25%;
+    left: -10%;
+    animation: cloudDrift 28s linear infinite;
+}
+
+.cloud-wisp-2 {
+    width: 50%;
+    top: 55%;
+    right: -10%;
+    animation: cloudDriftReverse 35s linear infinite;
+}
+
+@keyframes cloudDrift {
+    0% {
+        transform: translateX(0);
+    }
+
+    100% {
+        transform: translateX(120%);
+    }
+}
+
+@keyframes cloudDriftReverse {
+    0% {
+        transform: translateX(0);
+    }
+
+    100% {
+        transform: translateX(-120%);
+    }
+}
+
+/* ==========================================================================
+   BACKGROUND AIR TRAFFIC PLANES
+   ========================================================================== */
+.sky-traffic-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.bg-traffic-plane {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+    pointer-events: none;
+}
+
+.bg-traffic-plane.active {
+    opacity: 0.85;
+}
+
+.bg-traffic-plane.ltr {
+    left: -160px;
+    animation: trafficFlyLTR linear infinite;
+}
+
+.bg-traffic-plane.rtl {
+    right: -160px;
+    flex-direction: row-reverse;
+    animation: trafficFlyRTL linear infinite;
+}
+
+@keyframes trafficFlyLTR {
+    0% {
+        transform: translateX(0) scale(var(--scale, 0.4)) rotate(var(--angle, -4deg));
+    }
+
+    100% {
+        transform: translateX(calc(100vw + 350px)) scale(var(--scale, 0.4)) rotate(var(--angle, -4deg));
+    }
+}
+
+@keyframes trafficFlyRTL {
+    0% {
+        transform: translateX(0) scale(var(--scale, 0.4)) rotate(var(--angle, 4deg)) scaleX(-1);
+    }
+
+    100% {
+        transform: translateX(calc(-100vw - 350px)) scale(var(--scale, 0.4)) rotate(var(--angle, 4deg)) scaleX(-1);
+    }
+}
+
+.bg-plane-contrail {
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 60%, rgba(255, 255, 255, 0.75) 100%);
+    border-radius: 2px;
+    filter: blur(0.8px);
+}
+
+.bg-traffic-plane.rtl .bg-plane-contrail {
+    background: linear-gradient(270deg, transparent 0%, rgba(255, 255, 255, 0.4) 60%, rgba(255, 255, 255, 0.75) 100%);
+}
+
+.bg-plane-svg {
+    width: 50px;
+    height: 22px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+.bg-plane-lights {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.beacon-strobe {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+}
+
+.beacon-red {
+    left: 20px;
+    top: 4px;
+    background: #ff3344;
+    box-shadow: 0 0 6px #ff3344;
+    animation: beaconBlink 1s infinite alternate;
+}
+
+.beacon-green {
+    left: 20px;
+    bottom: 4px;
+    background: #00e676;
+    box-shadow: 0 0 6px #00e676;
+    animation: beaconBlink 1s 0.5s infinite alternate;
+}
+
+.beacon-white {
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #ffffff;
+    box-shadow: 0 0 8px #ffffff;
+    animation: strobeWhite 0.8s infinite;
+}
+
+@keyframes beaconBlink {
+
+    0%,
+    40% {
+        opacity: 0.1;
+    }
+
+    50%,
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes strobeWhite {
+
+    0%,
+    85% {
+        opacity: 0;
+    }
+
+    90%,
+    100% {
+        opacity: 1;
+    }
+}
+
+/* 3. Runway Airport Frame (Frame 1: 100% full viewport height at the bottom) */
+.world-runway {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    overflow: hidden;
+    background-color: transparent;
+    background-position: center bottom;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+}
+
+.world-frame-seam {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 48%;
+    height: 4%;
+    z-index: 4;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+            transparent 0%,
+            rgba(14, 15, 19, 0.18) 42%,
+            rgba(14, 15, 19, 0.3) 58%,
+            transparent 100%);
+}
+
+/* Vignette overlay for contrast and sleek Aviator feel */
+.world-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 60% 40%, rgba(10, 12, 20, 0.25) 0%, rgba(5, 7, 14, 0.72) 100%),
+        linear-gradient(180deg, rgba(14, 15, 19, 0.45) 0%, transparent 25%, transparent 75%, rgba(14, 15, 19, 0.6) 100%);
+}
+
+/* Aviator Dynamic Red Trajectory Curve */
+.aviator-trajectory-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 6;
+    pointer-events: none;
+    overflow: visible;
+}
+
+
+/* ==========================================================================
+   CLEANLY ARRANGED CELESTIAL ZONES & PLANETARY MILESTONES (COMPACT & PROPORTIONAL)
+   ========================================================================== */
+.celestial-zone {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.celestial-body {
+    position: absolute;
+    display: block;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    animation: celestialFadeIn 1.8s ease-out both;
+}
+
+@keyframes celestialFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(14px) scale(0.94);
+    }
+
+    100% {
+        opacity: 0.95;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Zone 1: Earth Horizon & Gold Star */
+.celestial-earth-horizon {
+    left: 50%;
+    bottom: -6%;
+    width: clamp(140px, 20vw, 240px);
+    aspect-ratio: 1;
+    transform: translateX(-50%);
+    opacity: 1;
+}
+
+.celestial-gold-star {
+    top: 14%;
+    right: 18%;
+    width: clamp(20px, 2.6vw, 32px);
+    aspect-ratio: 1;
+    animation: starPulseGlow 3s ease-in-out infinite alternate;
+}
+
+.celestial-gold-star-alt {
+    top: 18%;
+    right: 22%;
+    width: clamp(18px, 2.2vw, 28px);
+    aspect-ratio: 1;
+    animation: starPulseGlow 4s ease-in-out infinite alternate;
+}
+
+@keyframes starPulseGlow {
+    0% {
+        transform: scale(0.9) rotate(0deg);
+    }
+
+    100% {
+        transform: scale(1.1) rotate(15deg);
+    }
+}
+
+/* Zone 2: Blue Circle Nebula & Asteroid Field */
+.celestial-blue-nebula {
+    top: 5%;
+    left: 8%;
+    width: clamp(120px, 16vw, 200px);
+    aspect-ratio: 1;
+    opacity: 1;
+}
+
+.celestial-blue-nebula-alt {
+    bottom: 8%;
+    left: 10%;
+    width: clamp(130px, 18vw, 220px);
+    aspect-ratio: 1;
+    opacity: 1;
+}
+
+/* Danger Red Nebula & Cosmic Rounded Nebula */
+.celestial-danger-nebula {
+    top: 8%;
+    right: 10%;
+    width: clamp(130px, 18vw, 220px);
+    aspect-ratio: 1;
+    opacity: 1;
+}
+
+.celestial-rounded-nebula {
+    bottom: 10%;
+    left: 8%;
+    width: clamp(140px, 20vw, 240px);
+    aspect-ratio: 1;
+    opacity: 1;
+}
+
+.celestial-asteroid-main {
+    bottom: 24%;
+    left: 14%;
+    width: clamp(34px, 4.2vw, 56px);
+    aspect-ratio: 1;
+    animation: asteroidTumble 24s linear infinite;
+}
+
+.celestial-asteroid-small {
+    top: 28%;
+    left: 28%;
+    width: clamp(20px, 2.5vw, 32px);
+    aspect-ratio: 1;
+    animation: asteroidTumbleReverse 30s linear infinite;
+}
+
+@keyframes asteroidTumble {
+    0% {
+        transform: rotate(0deg) translateY(0);
+    }
+
+    50% {
+        transform: rotate(180deg) translateY(-8px);
+    }
+
+    100% {
+        transform: rotate(360deg) translateY(0);
+    }
+}
+
+@keyframes asteroidTumbleReverse {
+    0% {
+        transform: rotate(360deg) translateY(0);
+    }
+
+    50% {
+        transform: rotate(180deg) translateY(6px);
+    }
+
+    100% {
+        transform: rotate(0deg) translateY(0);
+    }
+}
+
+/* Zone 3: Jupiter & Bright Stars */
+.celestial-jupiter {
+    top: 12%;
+    right: 14%;
+    width: clamp(70px, 9vw, 120px);
+    aspect-ratio: 1;
+    animation: planetFloat 7s ease-in-out infinite alternate;
+}
+
+.celestial-bright-stars {
+    top: 8%;
+    left: 8%;
+    width: clamp(120px, 16vw, 200px);
+    opacity: 1;
+}
+
+/* Zone 4: Ringed Saturn */
+.celestial-saturn {
+    top: 15%;
+    right: 12%;
+    width: clamp(80px, 10vw, 135px);
+    aspect-ratio: 1;
+    animation: planetFloat 8s ease-in-out infinite alternate;
+}
+
+/* Red Ringed Saturn */
+.celestial-saturn-red {
+    top: 14%;
+    right: 12%;
+    width: clamp(85px, 11vw, 145px);
+    aspect-ratio: 1;
+    animation: planetFloat 7.5s ease-in-out infinite alternate;
+}
+
+/* Cloudy Atmosphere Planet (Anchored on Left Corner to hide cropped edge) */
+.celestial-cloudy-planet {
+    top: 15%;
+    left: -3%;
+    width: clamp(130px, 17vw, 220px);
+    aspect-ratio: 1;
+    animation: planetFloat 8.5s ease-in-out infinite alternate;
+}
+
+/* Wing / Cosmic Galaxy Object (Anchored on Left Corner to hide cropped edge) */
+.celestial-pngwing {
+    bottom: 12%;
+    left: -4%;
+    width: clamp(145px, 19vw, 250px);
+    aspect-ratio: 1;
+    opacity: 1;
+}
+
+/* Zone 5: Purple Planet */
+.celestial-purple-planet {
+    top: 14%;
+    right: 14%;
+    width: clamp(75px, 9.5vw, 125px);
+    aspect-ratio: 1;
+    animation: planetFloat 6.5s ease-in-out infinite alternate;
+}
+
+@keyframes planetFloat {
+    0% {
+        transform: translateY(0);
+    }
+
+    100% {
+        transform: translateY(-8px);
+    }
+}
+
+/* Zone 4: Planet Earth Orbital Pass (10x+ Milestone) */
+.zone-earth-orbital {
+    display: flex;
+    align-items: flex-end;
+}
+
+.orbital-earth-container {
+    position: absolute;
+    left: -2%;
+    bottom: -14%;
+    width: clamp(170px, 24vw, 300px);
+    aspect-ratio: 1;
+    pointer-events: none;
+    animation: orbitalEarthHover 8s ease-in-out infinite alternate;
+}
+
+.celestial-earth-orbital {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.orbital-earth-glow {
+    display: none;
+}
+
+@keyframes orbitalEarthHover {
+    0% {
+        transform: translateY(0);
+    }
+
+    100% {
+        transform: translateY(-8px);
+    }
+}
+
+/* Runway Tire Friction Smoke Emitter */
+.tire-smoke-layer {
+    position: absolute;
+    left: 20%;
+    bottom: 2%;
+    width: 60px;
+    height: 20px;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.tire-smoke-puff {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(220, 225, 235, 0.7) 0%, rgba(180, 190, 205, 0.35) 50%, transparent 80%);
+    filter: blur(3px);
+    animation: smokePuffBack 0.45s ease-out infinite;
+}
+
+.tire-smoke-puff.puff-1 {
+    left: 10px;
+    bottom: 0;
+    width: 16px;
+    height: 14px;
+    animation-delay: 0s;
+}
+
+.tire-smoke-puff.puff-2 {
+    left: 28px;
+    bottom: 2px;
+    width: 22px;
+    height: 18px;
+    animation-delay: 0.15s;
+}
+
+.tire-smoke-puff.puff-3 {
+    left: 46px;
+    bottom: 4px;
+    width: 26px;
+    height: 22px;
+    animation-delay: 0.3s;
+}
+
+@keyframes smokePuffBack {
+    0% {
+        transform: translate(0, 0) scale(0.6);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: translate(-35px, -12px) scale(1.6);
+        opacity: 0;
+    }
+}
+
+/* Realistic Jet Engine Rocket Fire & Booster Plumes */
+.jet-exhaust-container {
+    position: absolute;
+    left: 4px;
+    top: 58%;
+    transform: translateY(-50%);
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* Continuous Engine Smoke Trail */
+.exhaust-smoke-trail {
+    position: absolute;
+    left: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 140px;
+    height: 30px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.exhaust-smoke-particle {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(160, 174, 192, 0.45) 0%, rgba(100, 116, 139, 0.25) 45%, transparent 75%);
+    filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.exhaust-smoke-particle.smk-1 {
+    width: 22px;
+    height: 18px;
+    left: 0;
+    top: 6px;
+    animation: jetSmokeStream 0.8s ease-out infinite;
+}
+
+.exhaust-smoke-particle.smk-2 {
+    width: 32px;
+    height: 24px;
+    left: -15px;
+    top: 3px;
+    animation: jetSmokeStream 0.8s 0.2s ease-out infinite;
+}
+
+.exhaust-smoke-particle.smk-3 {
+    width: 44px;
+    height: 30px;
+    left: -35px;
+    top: 0;
+    animation: jetSmokeStream 0.8s 0.4s ease-out infinite;
+}
+
+.exhaust-smoke-particle.smk-4 {
+    width: 58px;
+    height: 38px;
+    left: -55px;
+    top: -4px;
+    animation: jetSmokeStream 0.8s 0.6s ease-out infinite;
+}
+
+@keyframes jetSmokeStream {
+    0% {
+        transform: translate(0, 0) scale(0.6);
+        opacity: 0.75;
+    }
+
+    60% {
+        opacity: 0.4;
+    }
+
+    100% {
+        transform: translate(-70px, -6px) scale(2.2);
+        opacity: 0;
+    }
+}
+
+/* Incandescent Hot White/Cyan Core */
+.jet-exhaust-core {
+    position: absolute;
+    left: -14px;
+    top: -4px;
+    width: 18px;
+    height: 9px;
+    background: radial-gradient(ellipse at center, #ffffff 40%, #7dd3fc 85%, transparent 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 12px #38bdf8, 0 0 20px #ff3b30;
+    z-index: 5;
+}
+
+/* Hyper-Realistic Fiery Thrust Flame */
+.jet-exhaust-flame {
+    position: absolute;
+    left: -48px;
+    top: -10px;
+    width: 52px;
+    height: 20px;
+    background: radial-gradient(ellipse at 95% 50%, #ffffff 0%, #ffea79 18%, #ff8c00 48%, #ff2200 78%, transparent 96%);
+    border-radius: 50% 20% 20% 50%;
+    animation: jetFlameFlicker 0.06s alternate infinite;
+    z-index: 4;
+}
+
+/* Outer Turbulent Plasma Plume */
+.jet-exhaust-outer-fire {
+    position: absolute;
+    left: -70px;
+    top: -16px;
+    width: 76px;
+    height: 32px;
+    background: radial-gradient(ellipse at 90% 50%, rgba(255, 140, 0, 0.85) 0%, rgba(239, 68, 68, 0.65) 50%, rgba(185, 28, 28, 0.25) 80%, transparent 95%);
+    border-radius: 50% 15% 15% 50%;
+    animation: jetOuterPlume 0.08s alternate infinite;
+    filter: blur(1.5px);
+    z-index: 3;
+}
+
+/* Ambient Heat Distortion Glow */
+.jet-exhaust-glow {
+    position: absolute;
+    left: -90px;
+    top: -26px;
+    width: 98px;
+    height: 52px;
+    background: radial-gradient(circle at 85% 50%, rgba(255, 90, 20, 0.45) 0%, rgba(239, 68, 68, 0.25) 45%, transparent 75%);
+    border-radius: 50%;
+    animation: jetGlowPulse 0.12s alternate infinite;
+    z-index: 2;
+}
+
+/* Liftoff Booster Active Mode (Intense Rocket Thruster) */
+.is-booster-active .jet-exhaust-core {
+    width: 24px;
+    height: 11px;
+    left: -18px;
+    top: -5px;
+    box-shadow: 0 0 18px #93c5fd, 0 0 32px #ff2a00;
+}
+
+.is-booster-active .jet-exhaust-flame {
+    width: 78px;
+    height: 25px;
+    left: -74px;
+    top: -12px;
+    background: radial-gradient(ellipse at 95% 50%, #ffffff 0%, #93c5fd 15%, #fde047 35%, #ff5722 65%, #dc2626 90%, transparent 98%);
+    animation: boosterFlameFlicker 0.04s alternate infinite;
+}
+
+.is-booster-active .jet-exhaust-outer-fire {
+    width: 105px;
+    height: 40px;
+    left: -100px;
+    top: -20px;
+    background: radial-gradient(ellipse at 90% 50%, rgba(255, 230, 100, 0.95) 0%, rgba(255, 100, 0, 0.8) 40%, rgba(220, 38, 38, 0.5) 75%, transparent 96%);
+    animation: boosterPlumeRoar 0.05s alternate infinite;
+    filter: blur(2px);
+}
+
+.is-booster-active .jet-exhaust-glow {
+    width: 130px;
+    height: 64px;
+    left: -125px;
+    top: -32px;
+    background: radial-gradient(circle at 85% 50%, rgba(56, 189, 248, 0.55) 0%, rgba(255, 100, 20, 0.45) 35%, rgba(239, 68, 68, 0.25) 65%, transparent 80%);
+}
+
+.jet-exhaust-shockdiamonds {
+    position: absolute;
+    left: -55px;
+    top: -2.5px;
+    width: 44px;
+    height: 5px;
+    background: repeating-linear-gradient(90deg, #ffffff 0px, #a5f3fc 5px, transparent 5px, transparent 11px);
+    border-radius: 2px;
+    filter: drop-shadow(0 0 5px #38bdf8);
+    opacity: 0.95;
+    z-index: 6;
+}
+
+@keyframes boosterFlameFlicker {
+    0% {
+        transform: scaleX(0.92) scaleY(0.95) skewY(-0.5deg);
+        opacity: 0.95;
+    }
+
+    100% {
+        transform: scaleX(1.38) scaleY(1.18) skewY(0.5deg);
+        opacity: 1;
+    }
+}
+
+@keyframes boosterPlumeRoar {
+    0% {
+        transform: scaleX(0.9) scaleY(0.9);
+        opacity: 0.85;
+    }
+
+    100% {
+        transform: scaleX(1.45) scaleY(1.25);
+        opacity: 1;
+    }
+}
+
+@keyframes jetFlameFlicker {
+    0% {
+        transform: scaleX(0.88) scaleY(0.92);
+        opacity: 0.9;
+    }
+
+    100% {
+        transform: scaleX(1.28) scaleY(1.12);
+        opacity: 1;
+    }
+}
+
+@keyframes jetOuterPlume {
+    0% {
+        transform: scaleX(0.85) scaleY(0.9);
+        opacity: 0.75;
+    }
+
+    100% {
+        transform: scaleX(1.3) scaleY(1.15);
+        opacity: 0.95;
+    }
+}
+
+@keyframes jetGlowPulse {
+    0% {
+        opacity: 0.65;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Arena Center Display */
+.arena-center-display {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 20;
+}
+
+/* Header SVG Icons */
+.brand-logo-svg {
+    width: 20px;
+    height: 20px;
+    color: var(--accent-red);
+    transform: rotate(-15deg);
+    display: inline-block;
+    filter: drop-shadow(0 0 6px var(--accent-red-glow));
+}
+
+.header-icon-svg {
+    width: 14px;
+    height: 14px;
+    color: var(--text-dim);
+}
+
+.fair-shield-svg {
+    width: 14px;
+    height: 14px;
+    color: #10b981;
+}
+
+.sound-icon-svg {
+    width: 16px;
+    height: 16px;
+}
+
+.tab-icon-svg {
+    width: 15px;
+    height: 15px;
+    margin-right: 6px;
+    vertical-align: middle;
+}

@@ -1,0 +1,362 @@
+/* ==========================================================================
+   ROTATE DEVICE OVERLAY (FORCED LANDSCAPE FOR MOBILE / TABLET PORTRAIT)
+   ========================================================================== */
+.rotate-device-overlay {
+    display: none;
+}
+
+@media screen and (orientation: portrait) and (max-width: 900px) {
+    .rotate-device-overlay {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: #04060d;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 16px;
+        overflow: hidden;
+        box-sizing: border-box;
+        touch-action: none;
+    }
+}
+
+/* Ambient glow & cyber grid */
+.rotate-ambient-glow {
+    position: absolute;
+    width: 340px;
+    height: 340px;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    opacity: 0.55;
+    animation: rotateGlowPulse 5s ease-in-out infinite alternate;
+}
+
+@keyframes rotateGlowPulse {
+    0% { transform: translate(-50%, -10px) scale(0.9); opacity: 0.4; }
+    100% { transform: translate(-50%, 10px) scale(1.1); opacity: 0.65; }
+}
+
+.glow-red {
+    top: -40px;
+    left: 50%;
+    background: radial-gradient(circle, rgba(255, 42, 75, 0.45) 0%, transparent 70%);
+}
+
+.glow-cyan {
+    bottom: -60px;
+    left: 50%;
+    background: radial-gradient(circle, rgba(0, 242, 254, 0.25) 0%, transparent 70%);
+}
+
+.rotate-grid-lines {
+    position: absolute;
+    inset: 0;
+    background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+}
+
+/* Modal Card */
+.rotate-modal-card {
+    position: relative;
+    z-index: 10;
+    max-width: 360px;
+    width: 100%;
+    background: rgba(14, 18, 30, 0.92);
+    border: 1.5px solid rgba(255, 42, 75, 0.45);
+    border-radius: 20px;
+    padding: 24px 18px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(255, 30, 60, 0.22), inset 0 0 16px rgba(255, 42, 75, 0.1);
+}
+
+.rotate-hud-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.rotate-jet-icon-box {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255, 42, 75, 0.12);
+    border: 1px solid rgba(255, 42, 75, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 16px rgba(255, 42, 75, 0.35);
+}
+
+.rotate-jet-svg {
+    width: 26px;
+    height: 26px;
+    filter: drop-shadow(0 0 6px #ff2a4b);
+}
+
+.rotate-hud-subtitle {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+}
+
+/* Graphic container */
+.rotate-graphic-container {
+    position: relative;
+    width: 130px;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 18px;
+}
+
+.rotate-orbit-arrow-wrap {
+    position: absolute;
+    inset: -6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: orbitSpin 3.2s linear infinite;
+}
+
+.rotate-orbit-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 8px rgba(255, 42, 75, 0.6));
+}
+
+@keyframes orbitSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Phone Bezel & Animation */
+.rotating-phone-box {
+    animation: phoneRotateLoop 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    transform-origin: center center;
+}
+
+@keyframes phoneRotateLoop {
+    0%, 15% {
+        transform: rotate(0deg);
+    }
+    45%, 75% {
+        transform: rotate(-90deg);
+    }
+    95%, 100% {
+        transform: rotate(0deg);
+    }
+}
+
+.phone-outer-bezel {
+    width: 58px;
+    height: 100px;
+    border-radius: 12px;
+    border: 2.2px solid rgba(255, 255, 255, 0.45);
+    background: #080c18;
+    padding: 3px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 0 16px rgba(0, 0, 0, 0.8), inset 0 0 8px rgba(255, 42, 75, 0.15);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    animation: phoneBezelGlow 3.2s ease-in-out infinite;
+}
+
+@keyframes phoneBezelGlow {
+    0%, 20% {
+        border-color: rgba(255, 255, 255, 0.45);
+        box-shadow: 0 0 12px rgba(255, 42, 75, 0.2);
+    }
+    45%, 75% {
+        border-color: #00f2fe;
+        box-shadow: 0 0 20px rgba(0, 242, 254, 0.6), inset 0 0 10px rgba(0, 242, 254, 0.3);
+    }
+    95%, 100% {
+        border-color: rgba(255, 255, 255, 0.45);
+        box-shadow: 0 0 12px rgba(255, 42, 75, 0.2);
+    }
+}
+
+.phone-screen {
+    width: 100%;
+    flex: 1;
+    background: linear-gradient(180deg, #0e1628 0%, #060913 100%);
+    border-radius: 7px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.phone-notch {
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 3px;
+    background: #1e293b;
+    border-radius: 2px;
+}
+
+.phone-home-indicator {
+    width: 18px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    margin-top: 2px;
+}
+
+.mini-cockpit-hud {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.mini-hud-mult {
+    font-size: 10px;
+    font-weight: 900;
+    color: #ff2a4b;
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 6px rgba(255, 42, 75, 0.8);
+}
+
+.mini-hud-curve {
+    position: absolute;
+    bottom: 12px;
+    left: 6px;
+    right: 6px;
+    height: 16px;
+    border-bottom: 1.5px solid #ff2a4b;
+    border-right: 1.5px solid #ff2a4b;
+    border-bottom-right-radius: 12px;
+    opacity: 0.7;
+}
+
+.mini-hud-jet {
+    position: absolute;
+    top: 36%;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    background: #fff;
+    clip-path: polygon(100% 50%, 0 0, 20% 50%, 0 100%);
+    box-shadow: 0 0 6px #fff;
+}
+
+/* Informational Text */
+.rotate-info-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.rotate-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(255, 42, 75, 0.12);
+    border: 1px solid rgba(255, 42, 75, 0.4);
+    margin-bottom: 10px;
+}
+
+.rotate-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ff2a4b;
+    box-shadow: 0 0 8px #ff2a4b;
+    animation: beaconPulse 1.2s ease-in-out infinite;
+}
+
+.rotate-status-text {
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #ff758c;
+    text-transform: uppercase;
+}
+
+.rotate-main-heading {
+    font-family: 'Rajdhani', 'SF Pro Display', -apple-system, sans-serif;
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #ffffff;
+    background: linear-gradient(180deg, #ffffff 40%, #ff8fa3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0 0 6px 0;
+    line-height: 1.2;
+}
+
+.rotate-desc-text {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #94a3b8;
+    margin: 0 0 18px 0;
+    max-width: 270px;
+}
+
+.rotate-desc-text .highlight-text {
+    color: #ff3355;
+    font-weight: 700;
+}
+
+.rotate-fullscreen-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #e50914 0%, #b20710 100%);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(229, 9, 20, 0.45);
+    transition: all 0.2s ease;
+}
+
+.rotate-fullscreen-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(229, 9, 20, 0.6);
+}
+
+.rotate-fullscreen-btn:active {
+    transform: translateY(0);
+}
+
+.fullscreen-icon-svg {
+    width: 14px;
+    height: 14px;
+}

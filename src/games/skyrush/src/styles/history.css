@@ -1,0 +1,155 @@
+/* ==========================================================================
+   HISTORY MULTIPLIER BAR
+   ========================================================================== */
+.aviator-history-bar {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 10px;
+    background: #111218;
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+    flex-shrink: 0;
+    gap: 6px;
+    z-index: 15;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.history-label {
+    display: flex;
+    align-items: center;
+    color: var(--text-dim);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.history-pills-scroll {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-x: auto;
+    flex: 1;
+    min-width: 0;
+    padding: 2px 0;
+    -webkit-overflow-scrolling: touch;
+}
+
+.history-pills-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.history-pill {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+}
+
+.history-pill:hover {
+    filter: brightness(1.25);
+    transform: translateY(-1px);
+}
+
+.history-expand-toggle {
+    background: transparent;
+    color: var(--text-dim);
+    padding: 3px;
+    font-size: 9px;
+}
+
+/* Pill Popover Modal */
+.pill-popover-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+}
+
+.pill-popover {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-active);
+    border-radius: 14px;
+    width: 310px;
+    padding: 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+}
+
+.popover-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.popover-title {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.popover-close {
+    background: none;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.popover-result {
+    text-align: center;
+    padding: 8px 0;
+}
+
+.popover-multiplier {
+    font-size: 34px;
+    font-weight: 900;
+}
+
+.popover-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--bg-surface);
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 11px;
+}
+
+.detail-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.detail-key {
+    color: var(--text-dim);
+}
+
+.detail-val {
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+.hash-val {
+    word-break: break-all;
+    font-size: 10px;
+    color: #34b4ff;
+}
+
+.popover-footer {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.popover-verified {
+    color: #10b981;
+    font-size: 11px;
+    font-weight: 600;
+}

@@ -1,0 +1,20 @@
+/**
+ * Skyrush Aviator - Modular Stylesheet Entrypoint
+ * All stylesheets are cleanly separated into the /src/styles directory:
+ *
+ * - src/styles/variables.css      -> CSS variables, typography, reset & base container
+ * - src/styles/header.css         -> Top header, balance, sound & fair button
+ * - src/styles/history.css        -> Multiplier history bar & pills
+ * - src/styles/layout.css         -> Main game layout grid & mobile view switcher
+ * - src/styles/sidebar.css        -> Live bets sidebar, stats bar & bets table
+ * - src/styles/world.css          -> Runway, seamless night sky loop, nebulae & planets
+ * - src/styles/plane.css          -> Supersonic jet actor, wheels, smoke & shockwave
+ * - src/styles/arena.css          -> Flight arena stage, live multiplier & crashed card
+ * - src/styles/loader.css         -> Boarding HUD loader, jumping passengers & milestone track
+ * - src/styles/bet-controls.css   -> Dual betting panels, spinners & quick amounts
+ * - src/styles/modals.css         -> Provably fair modal & pilot profile modal
+ * - src/styles/rotate-overlay.css -> Forced landscape rotate device prompt
+ * - src/styles/responsive.css     -> Separated responsive media queries for all devices
+ */
+
+@import './styles/index.css';

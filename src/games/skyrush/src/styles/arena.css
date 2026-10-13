@@ -1,0 +1,384 @@
+/* ==========================================================================
+   FLIGHT ARENA STAGE
+   ========================================================================== */
+.stage-wrapper {
+    flex: 1;
+    min-height: 220px;
+    position: relative;
+    display: flex;
+}
+
+.flight-arena {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #080b16;
+    border-radius: 14px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.7);
+}
+
+.flight-arena.is-crashed {
+    animation: arenaCrashShake 0.4s ease-out;
+}
+
+@keyframes arenaCrashShake {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    20% {
+        transform: translate(-3px, 2px);
+    }
+
+    40% {
+        transform: translate(3px, -2px);
+    }
+
+    60% {
+        transform: translate(-2px, -1px);
+    }
+
+    80% {
+        transform: translate(2px, 1px);
+    }
+}
+
+
+/* ==========================================================================
+   EMERGENCY MASS CRASH CHARACTER BAILOUT TRAJECTORIES (ALL OUTWARD)
+   ========================================================================== */
+.flight-parachute-eject.crash-mass-eject {
+    z-index: 16;
+}
+
+.flight-parachute-eject.crash-traj-up-left {
+    animation-name: crashTrajUpLeft;
+}
+.flight-parachute-eject.crash-traj-up-high {
+    animation-name: crashTrajUpHigh;
+}
+.flight-parachute-eject.crash-traj-up-right {
+    animation-name: crashTrajUpRight;
+}
+.flight-parachute-eject.crash-traj-far-left {
+    animation-name: crashTrajFarLeft;
+}
+.flight-parachute-eject.crash-traj-far-right {
+    animation-name: crashTrajFarRight;
+}
+.flight-parachute-eject.crash-traj-down-left {
+    animation-name: crashTrajDownLeft;
+}
+.flight-parachute-eject.crash-traj-down-right {
+    animation-name: crashTrajDownRight;
+}
+.flight-parachute-eject.crash-traj-loop-left {
+    animation-name: crashTrajLoopLeft;
+}
+.flight-parachute-eject.crash-traj-high-catapult {
+    animation-name: crashTrajHighCatapult;
+}
+.flight-parachute-eject.crash-traj-spin-out {
+    animation-name: crashTrajSpinOut;
+}
+
+@keyframes crashTrajUpLeft {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    14% { opacity: 1; transform: translate(-210px, -190px) scale(1.12) rotate(-45deg); }
+    26% { opacity: 1; transform: translate(-300px, -240px) scale(1.15) rotate(-15deg); }
+    60% { opacity: 1; transform: translate(-340px, 140px) scale(1.0) rotate(8deg); }
+    100% { opacity: 1; transform: translate(-360px, 660px) scale(0.95) rotate(0deg); }
+}
+
+@keyframes crashTrajUpHigh {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    14% { opacity: 1; transform: translate(-40px, -270px) scale(1.15) rotate(20deg); }
+    28% { opacity: 1; transform: translate(-70px, -360px) scale(1.20) rotate(5deg); }
+    60% { opacity: 1; transform: translate(-95px, 110px) scale(1.0) rotate(-6deg); }
+    100% { opacity: 1; transform: translate(-110px, 680px) scale(0.95) rotate(0deg); }
+}
+
+@keyframes crashTrajUpRight {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    14% { opacity: 1; transform: translate(190px, -200px) scale(1.12) rotate(35deg); }
+    26% { opacity: 1; transform: translate(270px, -270px) scale(1.15) rotate(12deg); }
+    60% { opacity: 1; transform: translate(300px, 150px) scale(1.0) rotate(-8deg); }
+    100% { opacity: 1; transform: translate(320px, 670px) scale(0.95) rotate(0deg); }
+}
+
+@keyframes crashTrajFarLeft {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    16% { opacity: 1; transform: translate(-330px, -90px) scale(1.1) rotate(-60deg); }
+    32% { opacity: 1; transform: translate(-430px, -50px) scale(1.05) rotate(-15deg); }
+    65% { opacity: 1; transform: translate(-450px, 260px) scale(0.98) rotate(6deg); }
+    100% { opacity: 1; transform: translate(-470px, 650px) scale(0.92) rotate(0deg); }
+}
+
+@keyframes crashTrajFarRight {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    16% { opacity: 1; transform: translate(310px, -80px) scale(1.1) rotate(55deg); }
+    32% { opacity: 1; transform: translate(400px, -40px) scale(1.05) rotate(15deg); }
+    65% { opacity: 1; transform: translate(420px, 280px) scale(0.98) rotate(-6deg); }
+    100% { opacity: 1; transform: translate(440px, 650px) scale(0.92) rotate(0deg); }
+}
+
+@keyframes crashTrajDownLeft {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    16% { opacity: 1; transform: translate(-180px, 140px) scale(1.08) rotate(-35deg); }
+    36% { opacity: 1; transform: translate(-240px, 270px) scale(1.02) rotate(12deg); }
+    70% { opacity: 1; transform: translate(-260px, 500px) scale(0.97) rotate(-5deg); }
+    100% { opacity: 1; transform: translate(-280px, 720px) scale(0.92) rotate(0deg); }
+}
+
+@keyframes crashTrajDownRight {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    16% { opacity: 1; transform: translate(170px, 150px) scale(1.08) rotate(35deg); }
+    36% { opacity: 1; transform: translate(230px, 280px) scale(1.02) rotate(-12deg); }
+    70% { opacity: 1; transform: translate(250px, 510px) scale(0.97) rotate(5deg); }
+    100% { opacity: 1; transform: translate(270px, 720px) scale(0.92) rotate(0deg); }
+}
+
+@keyframes crashTrajLoopLeft {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    14% { opacity: 1; transform: translate(-150px, -180px) scale(1.12) rotate(-180deg); }
+    26% { opacity: 1; transform: translate(-240px, -200px) scale(1.15) rotate(-360deg); }
+    60% { opacity: 1; transform: translate(-290px, 170px) scale(1.0) rotate(-370deg); }
+    100% { opacity: 1; transform: translate(-310px, 660px) scale(0.95) rotate(-360deg); }
+}
+
+@keyframes crashTrajHighCatapult {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    15% { opacity: 1; transform: translate(-120px, -330px) scale(1.22) rotate(-28deg); }
+    30% { opacity: 1; transform: translate(-170px, -410px) scale(1.18) rotate(8deg); }
+    60% { opacity: 1; transform: translate(-200px, 130px) scale(1.0) rotate(-5deg); }
+    100% { opacity: 1; transform: translate(-220px, 680px) scale(0.95) rotate(0deg); }
+}
+
+@keyframes crashTrajSpinOut {
+    0% { opacity: 1; transform: translate(0, 0) scale(0.35) rotate(0deg); }
+    15% { opacity: 1; transform: translate(150px, -180px) scale(1.12) rotate(270deg); }
+    30% { opacity: 1; transform: translate(210px, -240px) scale(1.15) rotate(540deg); }
+    60% { opacity: 1; transform: translate(240px, 170px) scale(1.0) rotate(700deg); }
+    100% { opacity: 1; transform: translate(260px, 660px) scale(0.95) rotate(720deg); }
+}
+
+
+/* ==========================================================================
+   ULTRA-PREMIUM LIVE MULTIPLIER DISPLAY
+   ========================================================================== */
+.premium-multiplier-display {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: multPulseHover 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes multPulseHover {
+    0% {
+        transform: translateY(0) scale(1);
+    }
+
+    100% {
+        transform: translateY(-4px) scale(1.02);
+    }
+}
+
+.multiplier-ambient-halo {
+    position: absolute;
+    width: 280px;
+    height: 140px;
+    border-radius: 50%;
+    filter: blur(45px);
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.55;
+    transition: background 0.4s ease;
+}
+
+.multiplier-digits-wrap {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.multiplier-number {
+    font-size: clamp(54px, 8.5vw, 96px);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -2px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+.multiplier-x-badge {
+    font-size: clamp(28px, 4.5vw, 52px);
+    font-weight: 900;
+    line-height: 1;
+    text-transform: lowercase;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+/* Tier 1: Ice Blue (< 2.00x) */
+.tier-blue .multiplier-ambient-halo {
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.45) 0%, transparent 70%);
+}
+
+.tier-blue .multiplier-number {
+    color: #ffffff;
+    text-shadow: 0 0 25px rgba(56, 189, 248, 0.8), 0 0 50px rgba(14, 165, 233, 0.45), 0 4px 16px rgba(0, 0, 0, 0.9);
+}
+
+.tier-blue .multiplier-x-badge {
+    color: #38bdf8;
+    text-shadow: 0 0 20px #38bdf8;
+}
+
+/* Tier 2: Electric Purple / Indigo (2.00x - 9.99x) */
+.tier-purple .multiplier-ambient-halo {
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.55) 0%, transparent 70%);
+}
+
+.tier-purple .multiplier-number {
+    color: #fdf4ff;
+    text-shadow: 0 0 28px rgba(192, 132, 252, 0.9), 0 0 60px rgba(168, 85, 247, 0.55), 0 4px 16px rgba(0, 0, 0, 0.9);
+}
+
+.tier-purple .multiplier-x-badge {
+    color: #c084fc;
+    text-shadow: 0 0 22px #c084fc;
+}
+
+/* Tier 3: High-Roller Pink / Magenta (10.00x - 49.99x) */
+.tier-pink .multiplier-ambient-halo {
+    background: radial-gradient(circle, rgba(236, 72, 153, 0.65) 0%, transparent 70%);
+}
+
+.tier-pink .multiplier-number {
+    color: #fff1f2;
+    text-shadow: 0 0 32px rgba(244, 114, 182, 0.95), 0 0 70px rgba(236, 72, 153, 0.6), 0 4px 18px rgba(0, 0, 0, 0.9);
+}
+
+.tier-pink .multiplier-x-badge {
+    color: #f472b6;
+    text-shadow: 0 0 25px #f472b6;
+}
+
+/* Tier 4: Golden Supernova (50.00x+) */
+.tier-gold .multiplier-ambient-halo {
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.75) 0%, transparent 70%);
+}
+
+.tier-gold .multiplier-number {
+    color: #fffbeb;
+    text-shadow: 0 0 35px rgba(251, 191, 36, 1), 0 0 80px rgba(245, 158, 11, 0.7), 0 4px 20px rgba(0, 0, 0, 0.9);
+}
+
+.tier-gold .multiplier-x-badge {
+    color: #fbbf24;
+    text-shadow: 0 0 28px #fbbf24;
+}
+
+/* Flew Away / Crashed Card */
+.premium-flew-away-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    animation: flewAwayPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.flew-away-title {
+    font-size: clamp(26px, 4.5vw, 42px);
+    font-weight: 900;
+    font-style: italic;
+    color: #ff2233;
+    letter-spacing: 3px;
+    text-shadow: 0 0 25px rgba(255, 34, 51, 0.95), 0 0 50px rgba(255, 80, 0, 0.8);
+    animation: crashTitleGlow 0.35s ease-out;
+}
+
+@keyframes crashTitleGlow {
+    0% { transform: scale(0.6); filter: brightness(3); }
+    50% { transform: scale(1.15); filter: brightness(1.8); }
+    100% { transform: scale(1.0); filter: brightness(1.0); }
+}
+
+.flew-away-multiplier {
+    font-size: clamp(48px, 7vw, 76px);
+    font-weight: 900;
+    color: #ff3b30;
+    letter-spacing: -1px;
+    text-shadow: 0 0 35px rgba(255, 51, 68, 0.8), 0 0 15px rgba(255, 180, 0, 0.5);
+}
+
+.mult-x-tag {
+    font-size: 0.75em;
+    margin-left: 2px;
+    color: #ff2233;
+}
+
+/* Win Toast Banner */
+.win-toast-banner {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(21, 128, 61, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 10px 20px;
+    border-radius: 25px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 10px 30px rgba(34, 197, 94, 0.4);
+    z-index: 30;
+    animation: toastSlideDown 0.35s ease-out;
+}
+
+@keyframes toastSlideDown {
+    0% {
+        transform: translate(-50%, -40px);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+.win-toast-icon {
+    font-size: 24px;
+}
+
+.win-toast-title {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: #f0fdf4;
+}
+
+.win-toast-details {
+    font-size: 12px;
+    color: #ffffff;
+}
+
+.win-mult {
+    font-weight: 800;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+
+.win-toast-amount {
+    font-size: 16px;
+    font-weight: 900;
+    color: #ffffff;
+}

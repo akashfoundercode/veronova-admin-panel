@@ -1,0 +1,246 @@
+/* ==========================================================================
+   HEADER
+   ========================================================================== */
+.aviator-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 14px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
+    z-index: 20;
+    flex-shrink: 0;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.aviator-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.brand-logo-icon {
+    color: var(--accent-red);
+    font-size: 20px;
+    transform: rotate(-15deg);
+    display: inline-block;
+    filter: drop-shadow(0 0 6px var(--accent-red-glow));
+}
+
+.brand-text {
+    font-size: 20px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: -0.5px;
+    color: var(--accent-red);
+    text-shadow: 0 0 10px var(--accent-red-glow);
+}
+
+.header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+}
+
+.header-btn:hover {
+    color: var(--text-main);
+    border-color: var(--border-active);
+}
+
+.info-icon {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+}
+
+.online-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, 0.25);
+    padding: 4px 8px;
+    border-radius: 12px;
+}
+
+.online-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+.socket-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: #10b981;
+    font-family: monospace;
+    transition: all 0.25s ease;
+}
+
+.socket-badge.disconnected {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.25);
+    color: #ef4444;
+}
+
+.socket-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+}
+
+.socket-badge.disconnected .socket-dot {
+    background: #ef4444;
+    box-shadow: 0 0 6px #ef4444;
+}
+
+.balance-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #090a0d;
+    padding: 3px 6px 3px 10px;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    position: relative;
+}
+
+.balance-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-weight: 600;
+}
+
+.balance-amount {
+    font-size: 13px;
+    font-weight: 800;
+    color: #22c55e;
+}
+
+.deposit-plus-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.deposit-dropdown {
+    position: absolute;
+    top: 36px;
+    right: 0;
+    width: 230px;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-active);
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    z-index: 100;
+}
+
+.deposit-title {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.deposit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.deposit-grid button {
+    padding: 5px 6px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.deposit-grid button:hover {
+    background: var(--accent-green);
+}
+
+.deposit-reset {
+    width: 100%;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.deposit-reset:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.sound-toggle-btn {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+}

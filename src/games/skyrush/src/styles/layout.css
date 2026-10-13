@@ -1,0 +1,33 @@
+/* ==========================================================================
+   MAIN LAYOUT (SIDEBAR + ARENA + CONTROLS)
+   ========================================================================== */
+.mobile-view-tabs {
+    display: none;
+}
+
+.aviator-main-layout {
+    display: grid;
+    grid-template-columns: 210px 1fr;
+    flex: 1;
+    min-height: 0;
+    background: var(--bg-dark);
+}
+
+.sidebar-column {
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    width: 210px;
+    max-width: 210px;
+}
+
+.game-column {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 8px;
+    gap: 8px;
+    background: var(--bg-dark);
+}

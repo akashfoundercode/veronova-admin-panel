@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0e0f13" />
+    <title>SkyRush Aviator Demo</title>
+    <script type="module" crossorigin src="/assets/aviatorGame-BcGKoqTJ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/client-Djga9DzM.js">
+    <link rel="stylesheet" crossorigin href="/assets/aviatorGame-SPM8CMR4.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Forward mouse wheel and touch scroll to parent window so admin page slides/scrolls smoothly
+      if (window.parent && window.parent !== window) {
+        window.addEventListener('wheel', function (e) {
+          window.parent.postMessage({ type: 'PARENT_SCROLL', deltaY: e.deltaY }, '*')
+        }, { passive: true })
+
+        var touchStartY = 0
+        window.addEventListener('touchstart', function (e) {
+          if (e.touches && e.touches[0]) {
+            touchStartY = e.touches[0].clientY
+          }
+        }, { passive: true })
+
+        window.addEventListener('touchmove', function (e) {
+          if (e.touches && e.touches[0]) {
+            var currentY = e.touches[0].clientY
+            var deltaY = touchStartY - currentY
+            touchStartY = currentY
+            window.parent.postMessage({ type: 'PARENT_SCROLL', deltaY: deltaY }, '*')
+          }
+        }, { passive: true })
+      }
+    </script>
+  </body>
+</html>
