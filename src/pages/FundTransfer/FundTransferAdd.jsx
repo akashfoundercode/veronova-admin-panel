@@ -1,14 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Wallet, User, IndianRupee, Layers, MessageCircle, Send, History,
   TrendingUp, ShieldCheck, ArrowRight, CheckCircle2, Sparkles, Copy,
-  Check, AlertCircle, Building2, Receipt, ArrowUpRight, Clock, Award
+  Check, AlertCircle, Building2, Receipt, ArrowUpRight, Clock, Award,
+  RefreshCw, KeyRound, LogIn
 } from 'lucide-react'
 import { PageBanner, Field, Modal, useToast, money } from '@/components/ui'
 import fundTransferBg from '@/assets/images/FUND TRANSFER.png'
 import { ROUTES } from '@/constants/routes'
-import { getFundTransfers, saveFundTransfers } from './fundTransferStore'
+import {
+  getFundTransfers, saveFundTransfers,
+  getSubtypes, saveSubtypes,
+  normalizeFundTransferItem
+} from './fundTransferStore'
+import { apiRequest } from '@/utils/apiClient'
+import auth from '@/utils/auth'
+import { API_ENDPOINTS } from '@/constants/api'
 
 // Known quick-select player suggestions
 const playerSuggestions = [
@@ -21,14 +29,20 @@ const playerSuggestions = [
 
 export default function FundTransferAdd() {
   const [rows, setRows] = useState(getFundTransfers)
+  const [subtypes, setSubtypes] = useState(getSubtypes)
   const [userId, setUserId] = useState('')
   const [userName, setUserName] = useState('')
   const [amount, setAmount] = useState('')
-  const [type, setType] = useState('ADD FUND')
+  const [selectedSubtypeId, setSelectedSubtypeId] = useState('37')
+  const [type, setType] = useState('FUND TRANSFER')
   const [remark, setRemark] = useState('')
   const [receiptModal, setReceiptModal] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
   const [toast, node] = useToast()
+
+  // API States
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [apiError, setApiError] = useState(null)
 
   // Copy helper
   const handleCopy = (text, id) => {
@@ -44,42 +58,127 @@ export default function FundTransferAdd() {
     setUserName(player.name)
   }
 
-  const send = (e) => {
-    e.preventDefault()
-    if (!userId.trim()) return toast('Please enter or select a User ID')
+  // Fetch Subtypes from History API
+  const fetchSubtypes = useCallback(async () => {
+    try {
+      const endpoints = [
+        API_ENDPOINTS.FUND_TRANSFER_HISTORY_PROXY,
+        API_ENDPOINTS.FUND_TRANSFER_HISTORY_API_PROXY,
+      ]
+      for (const ep of endpoints) {
+        try {
+          const json = await apiRequest(ep, { method: 'GET' })
+          const payload = json.data || json
+          if (Array.isArray(payload.subtypes) && payload.subtypes.length > 0) {
+            setSubtypes(payload.subtypes)
+            saveSubtypes(payload.subtypes)
+            console.log('[Veronova Fund Transfer] Subtypes loaded:', payload.subtypes)
+            break
+          }
+        } catch (e) {
+          if (e.status === 404) continue
+        }
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    fetchSubtypes()
+  }, [fetchSubtypes])
+
+  // Submit Handler for POST /admin/fund-transfer
+  const send = async (e) => {
+    e?.preventDefault()
+    setApiError(null)
+
+    const targetUser = userId.trim()
+    if (!targetUser) return toast('Please enter or select a User ID')
     const numAmt = Number(amount)
     if (!numAmt || numAmt <= 0) return toast('Please enter a valid transfer amount')
+
+    setIsSubmitting(true)
 
     const now = new Date()
     const date = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()} ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
     const txId = 'TXN_' + Math.floor(1000000 + Math.random() * 9000000)
 
-    const newEntry = {
-      id: Math.max(0, ...rows.map((r) => r.id || 0)) + 1,
-      tx_id: txId,
-      user: userId.trim().toUpperCase(),
-      user_name: userName.trim() || 'Verified Player',
+    // Find subtype details
+    const chosenSubtype = subtypes.find((s) => String(s.id) === String(selectedSubtypeId))
+    const transferTypeName = chosenSubtype?.name || type || 'FUND TRANSFER'
+
+    const payload = {
+      user_id: targetUser,
+      u_id: targetUser,
+      username: userName.trim() || undefined,
       amount: numAmt,
+      type: Number(selectedSubtypeId) || 37,
+      type_name: transferTypeName,
+      subtype_id: Number(selectedSubtypeId) || undefined,
       remark: remark.trim() || 'Manual transfer by admin',
-      desc: type.toUpperCase(),
-      date,
-      operator: 'Super Admin (ADM01)',
-      status: 'Completed',
+      description: remark.trim() || transferTypeName,
     }
 
-    const updated = [newEntry, ...rows]
-    setRows(updated)
-    saveFundTransfers(updated)
+    const endpoints = [
+      API_ENDPOINTS.FUND_TRANSFER_PROXY,     // '/admin/fund-transfer'
+      API_ENDPOINTS.FUND_TRANSFER_API_PROXY, // '/api/admin/fund-transfer'
+    ]
 
-    // Show receipt
-    setReceiptModal(newEntry)
-    toast(`₹${numAmt.toLocaleString('en-IN')} transferred to ${newEntry.user}!`)
+    let serverResponse = null
+    let success = false
+    let lastErr = null
 
-    // Reset inputs
-    setUserId('')
-    setUserName('')
-    setAmount('')
-    setRemark('')
+    for (const ep of endpoints) {
+      try {
+        console.log(`[Veronova Fund Transfer] POST to ${ep}...`, payload)
+        serverResponse = await apiRequest(ep, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        console.log(`[Veronova Fund Transfer] Response from ${ep}:`, serverResponse)
+        success = true
+        break
+      } catch (err) {
+        lastErr = err
+        if (err.status === 404) continue
+        break
+      }
+    }
+
+    if (success || !lastErr) {
+      const respData = serverResponse?.data || serverResponse || {}
+      const createdEntry = {
+        id: respData.id || respData['#'] || Math.max(0, ...rows.map((r) => r.id || 0)) + 1,
+        tx_id: respData.tx_id || txId,
+        user: targetUser.toUpperCase(),
+        user_name: userName.trim() || respData.username || 'Verified Player',
+        amount: numAmt,
+        remark: remark.trim() || 'Manual transfer by admin',
+        desc: transferTypeName.toUpperCase(),
+        date,
+        operator: 'Super Admin (ADM01)',
+        status: 'Completed',
+      }
+
+      const updated = [createdEntry, ...rows]
+      setRows(updated)
+      saveFundTransfers(updated)
+
+      // Show receipt modal
+      setReceiptModal(createdEntry)
+      toast(`₹${numAmt.toLocaleString('en-IN')} transferred to ${createdEntry.user}!`)
+
+      // Reset form fields
+      setUserId('')
+      setUserName('')
+      setAmount('')
+      setRemark('')
+    } else {
+      console.error('[Veronova Fund Transfer] POST failed:', lastErr)
+      setApiError(lastErr.message || 'Transfer failed on server')
+      toast(`Transfer failed: ${lastErr.message}`)
+    }
+
+    setIsSubmitting(false)
   }
 
   const totalTransferred = rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0)
@@ -110,6 +209,16 @@ export default function FundTransferAdd() {
           <History size={16} /> Transfer History Records
         </Link>
       </PageBanner>
+
+      {/* API Notice if any */}
+      {apiError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-600 shrink-0" />
+            <span>Notice: {apiError}</span>
+          </div>
+        </div>
+      )}
 
       {/* KPI Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -291,17 +400,27 @@ export default function FundTransferAdd() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="label flex items-center gap-1.5">
-                  <Layers size={14} className="text-blue-600" /> Transfer Type
+                  <Layers size={14} className="text-blue-600" /> Transfer Type / Subtype
                 </label>
                 <select
                   className="input font-semibold"
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
+                  value={selectedSubtypeId}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setSelectedSubtypeId(val)
+                    const found = subtypes.find((s) => String(s.id) === val)
+                    if (found) setType(found.name)
+                    else if (val === '37') setType('FUND TRANSFER')
+                    else if (val === '36') setType('ADD FUND')
+                  }}
                 >
-                  <option value="ADD FUND">Add Fund (Deposit Credit)</option>
-                  <option value="BONUS">Bonus (Promotional Reward)</option>
-                  <option value="FUND TRANSFER">Fund Transfer (Manual Balance)</option>
-                  <option value="PRIZE">Contest / Event Prize</option>
+                  <option value="37">FUND TRANSFER (Manual Balance)</option>
+                  <option value="36">ADD FUND (Deposit Credit)</option>
+                  {subtypes.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.name} {st.status === 0 ? '· (Disabled)' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -326,7 +445,7 @@ export default function FundTransferAdd() {
                   type="button"
                   key={txt}
                   onClick={() => setRemark(txt)}
-                  className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-200 transition"
+                  className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
                 >
                   {txt}
                 </button>
@@ -339,9 +458,19 @@ export default function FundTransferAdd() {
               </span>
               <button
                 type="submit"
-                className="btn px-6 py-2.5 font-extrabold shadow-md shadow-blue-500/25 flex items-center gap-2"
+                disabled={isSubmitting}
+                className="btn px-6 py-2.5 font-extrabold shadow-md shadow-blue-500/25 flex items-center gap-2 disabled:opacity-60 cursor-pointer"
               >
-                <Send size={16} /> Execute Transfer
+                {isSubmitting ? (
+                  <>
+                    <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} /> Execute Transfer
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -533,6 +662,8 @@ export default function FundTransferAdd() {
           </div>
         </Modal>
       )}
+
+
 
       {node}
     </div>

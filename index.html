@@ -6,9 +6,75 @@
     <title>Veronova Admin Panel</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      #veronova-initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #f3f8ff 0%, #eef4fc 50%, #f6f9ff 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        z-index: 99999;
+      }
+      .vn-ring {
+        animation: vnSpin 2.5s linear infinite;
+      }
+      .vn-crown {
+        animation: vnBounce 2s ease-in-out infinite;
+      }
+      .vn-beam {
+        position: absolute;
+        inset-block: 0;
+        width: 50%;
+        background: linear-gradient(90deg, transparent, #2563eb, #38bdf8);
+        border-radius: 9999px;
+        animation: vnBeam 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes vnSpin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      @keyframes vnBounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-3px); }
+      }
+      @keyframes vnBeam {
+        0% { left: -60%; }
+        100% { left: 120%; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="veronova-initial-loader">
+        <div style="position: relative; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+          <div style="position: absolute; inset: -8px; border-radius: 9999px; background: radial-gradient(circle, rgba(37,99,235,0.2) 0%, rgba(56,189,248,0.1) 60%, transparent 80%); filter: blur(10px);"></div>
+          <svg class="vn-ring" style="position: absolute; inset: 0; width: 100%; height: 100%;" viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="vn-initial-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#2563eb" />
+                <stop offset="50%" stop-color="#38bdf8" />
+                <stop offset="100%" stop-color="#6366f1" stop-opacity="0.1" />
+              </linearGradient>
+            </defs>
+            <circle cx="50" cy="50" r="44" fill="none" stroke="url(#vn-initial-grad)" stroke-width="4" stroke-dasharray="180 100" stroke-linecap="round"/>
+          </svg>
+          <div style="width: 58px; height: 58px; border-radius: 16px; background: #ffffff; box-shadow: 0 4px 14px rgba(37,99,235,0.15); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(219,234,254,0.9); position: relative; z-index: 2;">
+            <svg class="vn-crown" width="28" height="28" viewBox="0 0 24 24" fill="#2563eb" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/>
+              <path d="M5 21h14"/>
+            </svg>
+          </div>
+        </div>
+        <div style="font-size: 14px; font-weight: 900; letter-spacing: 0.28em; background: linear-gradient(90deg, #1d4ed8, #0ea5e9, #1e40af); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 4px;">VERONOVA</div>
+        <div style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 12px; letter-spacing: 0.05em;">Loading Admin Panel...</div>
+        <div style="width: 140px; height: 4px; border-radius: 9999px; background: #e2e8f0; overflow: hidden; position: relative;">
+          <div class="vn-beam"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

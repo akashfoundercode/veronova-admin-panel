@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Wallet, Calculator, Send, User, Users, FileSpreadsheet, Plus,
   Search, Check, Copy, Pencil, Trash2, ArrowUpRight, ArrowDownRight,
@@ -8,7 +8,9 @@ import {
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
-import { getSalaryRecords, saveSalaryRecords } from './salaryStore'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
+import { getSalaryRecords, saveSalaryRecords, normalizeSalaryRecord } from './salaryStore'
 
 export default function Salary() {
   const [rows, setRows] = useState(getSalaryRecords)
@@ -16,6 +18,10 @@ export default function Salary() {
   const [uid, setUid] = useState('')
   const [calcResult, setCalcResult] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSearchingUser, setIsSearchingUser] = useState(false)
+  const [lastSynced, setLastSynced] = useState(null)
 
   // Modals
   const [receiptModal, setReceiptModal] = useState(null)
@@ -92,45 +98,125 @@ export default function Salary() {
     })
   }, [rows, filterTab])
 
+  // Fetch full salary records from /admin/salary-list
+  const loadSalaryList = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+
+    try {
+      console.log(`[Veronova Salary] Fetching salary list from: ${API_ENDPOINTS.SALARY_LIST_PROXY}`)
+      const json = await apiRequest(API_ENDPOINTS.SALARY_LIST_PROXY, { method: 'GET' })
+
+      if (json && (json.status === 200 || json.data)) {
+        const payload = json.data || json
+        const rawList =
+          payload.list ||
+          payload.salaries ||
+          payload.history ||
+          payload.records ||
+          (Array.isArray(payload) ? payload : null)
+
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const formatted = rawList.map((item, idx) => normalizeSalaryRecord(item, idx))
+          setRows(formatted)
+          saveSalaryRecords(formatted)
+          setLastSynced(new Date().toLocaleTimeString())
+          console.log(`[Veronova Salary] Loaded ${formatted.length} salary records from backend`)
+        }
+      }
+    } catch (err) {
+      console.warn('[Veronova Salary] Error fetching salary list, using local cache:', err.message)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadSalaryList()
+  }, [loadSalaryList])
+
   // Select / Deselect All
   const toggleSelectAll = (checked) => {
     persistRows((prev) => prev.map((r) => ({ ...r, sel: checked })))
   }
 
-  // Calculate Salary Logic
-  const handleCalculateSalary = (e) => {
+  // Calculate & Search Salary via API: /admin/salary-list/:userId
+  const handleCalculateSalary = async (e) => {
     if (e) e.preventDefault()
-    if (!uid.trim()) {
+    const cleanUid = uid.trim()
+    if (!cleanUid) {
       return toast('Please enter a User ID or Agent Name')
     }
-    const query = uid.trim().toLowerCase()
-    const target = rows.find(
-      (x) =>
-        String(x.id) === query ||
-        (x.user_id && x.user_id.toLowerCase().includes(query)) ||
-        (x.user && x.user.toLowerCase().includes(query))
-    )
+
+    setIsSearchingUser(true)
+    let target = null
+
+    // 1. Live API Search: /admin/salary-list/:userId
+    try {
+      const searchEndpoint = API_ENDPOINTS.SALARY_USER_SEARCH_PROXY(cleanUid)
+      console.log(`[Veronova Salary] Searching user salary via API: ${searchEndpoint}`)
+      const res = await apiRequest(searchEndpoint, { method: 'GET' })
+
+      if (res && (res.status === 200 || res.data)) {
+        const payload = res.data || res
+        const userObj =
+          payload.user ||
+          payload.agent ||
+          payload.salary ||
+          payload.data ||
+          (Array.isArray(payload) ? payload[0] : payload)
+
+        if (userObj && (userObj.user_id || userObj.user || userObj.username || userObj.id)) {
+          target = normalizeSalaryRecord(userObj)
+          // Add/update into table
+          persistRows((prev) => {
+            const exists = prev.some(
+              (r) =>
+                r.id === target.id ||
+                (r.user_id && target.user_id && r.user_id.toLowerCase() === target.user_id.toLowerCase())
+            )
+            return exists ? prev.map((r) => (r.id === target.id ? { ...r, ...target } : r)) : [target, ...prev]
+          })
+          console.log(`[Veronova Salary] Found live user salary details from API for: ${cleanUid}`)
+        }
+      }
+    } catch (apiErr) {
+      console.warn(`[Veronova Salary] Live search /admin/salary-list/${cleanUid} error:`, apiErr.message)
+    } finally {
+      setIsSearchingUser(false)
+    }
+
+    // 2. Fallback to local table search
+    if (!target) {
+      const query = cleanUid.toLowerCase()
+      target = rows.find(
+        (x) =>
+          String(x.id) === query ||
+          (x.user_id && x.user_id.toLowerCase().includes(query)) ||
+          (x.user && x.user.toLowerCase().includes(query))
+      )
+    }
 
     if (!target) {
       setCalcResult(null)
-      return toast('User not found in agent payroll directory')
+      return toast(`User "${cleanUid}" not found in salary directory`)
     }
 
-    // Auto formula calculation:
-    // Base salary by role + 5% of monthly net P/L or 10% of daily net P/L
-    const monthlyPL = target.mDep - target.mWd
-    const dailyPL = target.dDep - target.dWd
-    const recommendedMonthly = Math.max(5000, Math.round(monthlyPL * 0.05 + target.active * 500))
-    const recommendedDaily = Math.max(500, Math.round(dailyPL * 0.08 + target.active * 50))
+    // Formula calculation
+    const monthlyPL = (Number(target.mDep) || 0) - (Number(target.mWd) || 0)
+    const dailyPL = (Number(target.dDep) || 0) - (Number(target.dWd) || 0)
+    const recommendedMonthly = target.amount || Math.max(5000, Math.round(monthlyPL * 0.05 + (target.active || 0) * 500))
+    const recommendedDaily = Math.max(500, Math.round(dailyPL * 0.08 + (target.active || 0) * 50))
 
     setCalcResult({
       agent: target,
       monthlyPL,
       dailyPL,
       recommendedMonthly,
-      recommendedDaily
+      recommendedDaily,
     })
-    toast(`Salary computed for ${target.user}`)
+    toast(`Salary computed for ${target.user || target.user_id}`)
   }
 
   // Apply Calculated Salary
@@ -548,9 +634,23 @@ export default function Salary() {
         ]}
       >
         <div className="flex flex-wrap items-center gap-2">
+          {lastSynced && (
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1 text-[11px] text-white/90 font-medium">
+              Synced: {lastSynced}
+            </span>
+          )}
+          <button
+            onClick={() => loadSalaryList(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-xs cursor-pointer"
+            title="Refresh Live Salary List from Server"
+          >
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+            <span>{isRefreshing ? 'Syncing...' : 'Sync Live'}</span>
+          </button>
           <button
             onClick={() => setAddModal(true)}
-            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95 cursor-pointer"
           >
             <Plus size={16} /> Add Salary Record
           </button>
@@ -711,7 +811,7 @@ export default function Salary() {
                 <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm font-semibold text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="Enter User ID (e.g. VN_78291, VN_44102 or Vikram)"
+                  placeholder="Enter User ID (e.g. 1, ADMIN_123, VN_78291, or name)"
                   value={uid}
                   onChange={(e) => setUid(e.target.value)}
                 />
@@ -721,15 +821,24 @@ export default function Salary() {
             <div className="sm:col-span-4 flex gap-2">
               <button
                 type="submit"
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 px-4 text-xs sm:text-sm font-bold text-white shadow-md transition-all hover:bg-blue-700 active:scale-95"
+                disabled={isSearchingUser}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 px-4 text-xs sm:text-sm font-bold text-white shadow-md transition-all hover:bg-blue-700 active:scale-95 disabled:opacity-60 cursor-pointer"
               >
-                <Calculator size={16} /> Calculate Details
+                {isSearchingUser ? (
+                  <>
+                    <RefreshCw size={15} className="animate-spin" /> Searching API...
+                  </>
+                ) : (
+                  <>
+                    <Search size={15} /> Search & Calculate
+                  </>
+                )}
               </button>
               {calcResult && (
                 <button
                   type="button"
                   onClick={() => { setCalcResult(null); setUid('') }}
-                  className="rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:bg-slate-100"
+                  className="rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Clear
                 </button>

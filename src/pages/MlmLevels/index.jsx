@@ -1,14 +1,18 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Network, Pencil, Users, TrendingUp, IndianRupee, Layers,
   CheckCircle2, Copy, Check, Calculator, HelpCircle, ArrowUpRight,
-  Sparkles, Award, ShieldCheck, Flame, GitBranch, Share2, DollarSign
+  Sparkles, Award, ShieldCheck, Flame, GitBranch, Share2, DollarSign,
+  RefreshCw
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
 import {
   getMlmLevels, saveMlmLevels,
-  initialTopAgents, initialCommissionLogs
+  initialTopAgents, initialCommissionLogs,
+  normalizeMlmLevel
 } from './mlmStore'
 
 export default function MlmLevels() {
@@ -16,6 +20,54 @@ export default function MlmLevels() {
   const [levels, setLevels] = useState(getMlmLevels)
   const [agents, setAgents] = useState(initialTopAgents)
   const [stream, setStream] = useState(initialCommissionLogs)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastSynced, setLastSynced] = useState(null)
+
+  // Fetch MLM Levels from /admin/mlm-levels
+  const loadMlmLevels = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+
+    try {
+      console.log(`[Veronova MLM] Fetching levels from: ${API_ENDPOINTS.MLM_LEVELS_PROXY}`)
+      const json = await apiRequest(API_ENDPOINTS.MLM_LEVELS_PROXY, { method: 'GET' })
+
+      if (json && (json.status === 200 || json.data)) {
+        const payload = json.data || json
+        const rawList =
+          payload.list ||
+          payload.mlm_levels ||
+          payload.levels ||
+          payload.history ||
+          (Array.isArray(payload) ? payload : null)
+
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const formatted = rawList.map((item, idx) => normalizeMlmLevel(item, idx))
+          setLevels(formatted)
+          saveMlmLevels(formatted)
+          setLastSynced(new Date().toLocaleTimeString())
+          console.log(`[Veronova MLM] Loaded ${formatted.length} cascading tiers from backend`)
+        }
+
+        if (payload.top_agents && Array.isArray(payload.top_agents)) {
+          setAgents(payload.top_agents)
+        }
+        if (payload.commission_logs && Array.isArray(payload.commission_logs)) {
+          setStream(payload.commission_logs)
+        }
+      }
+    } catch (err) {
+      console.warn('[Veronova MLM] Live fetch failed, using local/cached levels:', err.message)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadMlmLevels()
+  }, [loadMlmLevels])
 
   // Modals
   const [editLevel, setEditLevel] = useState(null)
@@ -349,12 +401,28 @@ export default function MlmLevels() {
           { label: 'Referral Cascade Slabs' },
         ]}
       >
-        <button
-          onClick={() => setRulesModal(true)}
-          className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition hover:bg-blue-50"
-        >
-          <HelpCircle size={15} /> 6-Tier Cascade Math
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {lastSynced && (
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1 text-[11px] text-white/90 font-medium">
+              Synced: {lastSynced}
+            </span>
+          )}
+          <button
+            onClick={() => loadMlmLevels(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-xs cursor-pointer"
+            title="Refresh Live MLM Levels from Server"
+          >
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+            <span>{isRefreshing ? 'Syncing...' : 'Sync Live'}</span>
+          </button>
+          <button
+            onClick={() => setRulesModal(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition hover:bg-blue-50 cursor-pointer"
+          >
+            <HelpCircle size={15} /> 6-Tier Cascade Math
+          </button>
+        </div>
       </PageBanner>
 
       {/* Compact, Sleek MLM Network Performance Stats */}

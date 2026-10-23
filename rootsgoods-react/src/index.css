@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-dark: #3F5A0E;
+    --brand-primary: #507212;
+    --brand-lime: #9BBE0C;
+    --ink-main: #1E1C18;
+    --ink-secondary: #6E6A61;
+    --surface-line: #E3E5DC;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #E3E5DC;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C7C4BC;
+}
+
+/* Custom Utilities */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

@@ -176,3 +176,6 @@ export function useToast() {
 }
 
 export const money = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+export { default as VeronovaLoader } from './ui/VeronovaLoader'
+

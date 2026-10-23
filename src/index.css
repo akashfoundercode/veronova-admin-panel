@@ -22,3 +22,61 @@ html, body, #root {
   .th { @apply px-4 py-3 text-left text-xs font-bold text-ink whitespace-nowrap; }
   .td { @apply px-4 py-3 text-sm text-slate-700 whitespace-nowrap; }
 }
+
+@keyframes veronovaBeam {
+  0% {
+    left: -60%;
+  }
+  100% {
+    left: 120%;
+  }
+}
+
+/* Realistic Thoroughbred Gallop Keyframe Animation */
+@keyframes horseGallop {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-3px) rotate(-2.5deg);
+  }
+  50% {
+    transform: translateY(1.5px) rotate(1.5deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(-1deg);
+  }
+}
+
+.animate-gallop {
+  animation: horseGallop 0.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Realistic Top-Down Galloping Thoroughbred Stride */
+@keyframes horseTopDownGallop {
+  0% {
+    transform: scale(1, 1) rotate(0deg) translateY(0px);
+  }
+  20% {
+    /* Muscle compression & gather */
+    transform: scale(0.96, 1.05) rotate(-2deg) translateY(-2px);
+  }
+  45% {
+    /* Full forward gallop extension */
+    transform: scale(1.06, 0.94) rotate(1.5deg) translateY(1.5px);
+  }
+  70% {
+    /* Airborne recovery phase */
+    transform: scale(0.98, 1.02) rotate(-1deg) translateY(-1px);
+  }
+  100% {
+    transform: scale(1, 1) rotate(0deg) translateY(0px);
+  }
+}
+
+.animate-horse-stride {
+  animation: horseTopDownGallop 0.34s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  transform-origin: 45% 50%;
+  will-change: transform;
+}
+

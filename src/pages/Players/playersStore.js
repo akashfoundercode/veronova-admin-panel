@@ -1,196 +1,26 @@
-const STORAGE_KEY = 'veronova_players_v2'
+const STORAGE_KEY = 'veronova_players_cache_v3'
 
-export const initialPlayers = [
-  {
-    id: 1,
-    user_id: 'VN_99814',
-    user_name: 'Akash_Pro',
-    mobile: '9876543210',
-    email: 'akash.pro@gmail.com',
-    sponsor: 'Admin',
-    sponsor_id: 'ADM01',
-    wallet: 4000000,
-    winning: 852000,
-    commission: 14500,
-    bonus: 25000,
-    turnover: 12500000,
-    vip_level: 'VIP 6',
-    status: 'Active',
-    kyc_status: 'Verified',
-    created_at: '12 Jan 2026, 04:30 PM',
-    avatar_color: 'from-amber-500 to-orange-600',
-    win_rate: '68%',
-    total_bets: 1420,
-  },
-  {
-    id: 2,
-    user_id: 'VZPH8680',
-    user_name: 'User_L13HY',
-    mobile: '7800302707',
-    email: 'l13hy@veronova.io',
-    sponsor: 'Admin',
-    sponsor_id: 'ADM01',
-    wallet: 39848,
-    winning: 17850,
-    commission: 4200,
-    bonus: 3500,
-    turnover: 650000,
-    vip_level: 'VIP 4',
-    status: 'Active',
-    kyc_status: 'Verified',
-    created_at: '24 Feb 2026, 02:15 PM',
-    avatar_color: 'from-blue-600 to-indigo-600',
-    win_rate: '54%',
-    total_bets: 430,
-  },
-  {
-    id: 3,
-    user_id: 'HLYY2860',
-    user_name: 'User_4CMBA',
-    mobile: '8755741645',
-    email: 'cmba88@outlook.com',
-    sponsor: 'User_L13HY',
-    sponsor_id: 'VZPH8680',
-    wallet: 15400,
-    winning: 8900,
-    commission: 1850,
-    bonus: 1200,
-    turnover: 240000,
-    vip_level: 'VIP 3',
-    status: 'Active',
-    kyc_status: 'Verified',
-    created_at: '15 Mar 2026, 07:10 PM',
-    avatar_color: 'from-purple-600 to-pink-600',
-    win_rate: '61%',
-    total_bets: 280,
-  },
-  {
-    id: 4,
-    user_id: 'BHJP4011',
-    user_name: 'User_VBRDE',
-    mobile: '8090145106',
-    email: 'vbrde_vip@yahoo.com',
-    sponsor: 'User_L13HY',
-    sponsor_id: 'VZPH8680',
-    wallet: 5000,
-    winning: 1200,
-    commission: 650,
-    bonus: 500,
-    turnover: 98000,
-    vip_level: 'VIP 2',
-    status: 'Active',
-    kyc_status: 'Pending',
-    created_at: '02 Apr 2026, 11:45 AM',
-    avatar_color: 'from-emerald-500 to-teal-600',
-    win_rate: '49%',
-    total_bets: 115,
-  },
-  {
-    id: 5,
-    user_id: 'JXEH0711',
-    user_name: 'User_GR9MH',
-    mobile: '9336193591',
-    email: 'gr9mh@gmail.com',
-    sponsor: 'User_L13HY',
-    sponsor_id: 'VZPH8680',
-    wallet: 840,
-    winning: 0,
-    commission: 120,
-    bonus: 100,
-    turnover: 32000,
-    vip_level: 'VIP 1',
-    status: 'Active',
-    kyc_status: 'Unverified',
-    created_at: '18 Apr 2026, 09:20 AM',
-    avatar_color: 'from-cyan-500 to-blue-600',
-    win_rate: '42%',
-    total_bets: 45,
-  },
-  {
-    id: 6,
-    user_id: 'MAMF1350',
-    user_name: 'Rahul_Champ',
-    mobile: '7991877018',
-    email: 'rahul.champ@gmail.com',
-    sponsor: 'Akash_Pro',
-    sponsor_id: 'VN_99814',
-    wallet: 85200,
-    winning: 45000,
-    commission: 6800,
-    bonus: 5000,
-    turnover: 1420000,
-    vip_level: 'VIP 5',
-    status: 'Active',
-    kyc_status: 'Verified',
-    created_at: '05 May 2026, 06:12 PM',
-    avatar_color: 'from-rose-500 to-red-600',
-    win_rate: '63%',
-    total_bets: 890,
-  },
-  {
-    id: 7,
-    user_id: 'KRNX7721',
-    user_name: 'Karan_Striker',
-    mobile: '9368117311',
-    email: 'karan77@gmail.com',
-    sponsor: 'Admin',
-    sponsor_id: 'ADM01',
-    wallet: 120500,
-    winning: 68000,
-    commission: 9400,
-    bonus: 7500,
-    turnover: 2150000,
-    vip_level: 'VIP 5',
-    status: 'Active',
-    kyc_status: 'Verified',
-    created_at: '20 May 2026, 01:40 PM',
-    avatar_color: 'from-amber-600 to-yellow-500',
-    win_rate: '57%',
-    total_bets: 720,
-  },
-  {
-    id: 8,
-    user_id: 'SUSP9901',
-    user_name: 'Suspicious_Player',
-    mobile: '7968676675',
-    email: 'suspicious@mail.com',
-    sponsor: 'None',
-    sponsor_id: '-',
-    wallet: 0,
-    winning: 0,
-    commission: 0,
-    bonus: 0,
-    turnover: 12000,
-    vip_level: 'VIP 1',
-    status: 'Suspended',
-    kyc_status: 'Unverified',
-    created_at: '01 Jun 2026, 10:05 PM',
-    avatar_color: 'from-slate-500 to-gray-700',
-    win_rate: '15%',
-    total_bets: 12,
-  },
-]
+export const initialPlayers = []
 
 export function getPlayers() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed
       }
     }
   } catch (e) {
     console.error('Error reading players from storage', e)
   }
-  return initialPlayers
+  return []
 }
 
 export function savePlayers(list) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list || []))
   } catch (e) {
     console.error('Error saving players to storage', e)
   }
 }
-

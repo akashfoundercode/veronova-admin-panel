@@ -113,3 +113,53 @@ export function saveOffers(offers) {
   }
 }
 
+export function normalizeOffer(raw, index = 0) {
+  const id = Number(raw.id ?? index + 1)
+  const title = raw.title || raw.name || raw.offer_name || `Offer #${id}`
+  const tagline = raw.tagline || raw.description || raw.desc || 'Exclusive promotional campaign'
+  const bonus = raw.bonus || raw.reward || (raw.percentage ? `${raw.percentage}% Bonus` : 'Special Bonus')
+  const minDeposit = Number(raw.min_deposit ?? raw.min_recharge ?? raw.min_amount ?? 500)
+  const maxBonus = Number(raw.max_bonus ?? raw.max_reward ?? raw.max_amount ?? 5000)
+  const type = raw.type || raw.category || 'Deposit Bonus'
+
+  let status = 'Active'
+  if (raw.status === 'Expired' || raw.status === 0 || raw.status === false || raw.is_active === false) {
+    status = 'Expired'
+  } else if (raw.status === 'Scheduled' || raw.is_scheduled === true) {
+    status = 'Scheduled'
+  } else if (raw.status === 'Active' || raw.status === 1 || raw.status === true || raw.is_active === true) {
+    status = 'Active'
+  }
+
+  const claimedCount = Number(raw.claimed_count ?? raw.claims ?? raw.total_claims ?? 0)
+  const budgetBurned = Number(raw.budget_burned ?? raw.budget ?? raw.burned ?? 0)
+  const startDate = raw.start_date || (raw.created_at ? raw.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10))
+  const endDate = raw.end_date || '2026-12-31'
+
+  const badgeColors = [
+    'from-blue-600 to-indigo-600',
+    'from-emerald-500 to-teal-600',
+    'from-amber-500 to-orange-600',
+    'from-purple-600 to-pink-600',
+    'from-rose-500 to-red-600',
+  ]
+  const badgeColor = raw.badge_color || badgeColors[(id - 1) % badgeColors.length]
+
+  return {
+    id,
+    title,
+    tagline,
+    bonus,
+    min_deposit: minDeposit,
+    max_bonus: maxBonus,
+    type,
+    status,
+    claimed_count: claimedCount,
+    budget_burned: budgetBurned,
+    start_date: startDate,
+    end_date: endDate,
+    badge_color: badgeColor,
+    raw,
+  }
+}
+

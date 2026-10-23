@@ -156,3 +156,105 @@ export function saveRedemptions(redemptions) {
   } catch (err) {}
 }
 
+export function normalizeGift(raw, index = 0) {
+  if (!raw || typeof raw !== 'object') return null
+
+  const id = raw.id ?? raw._id ?? raw['#'] ?? index + 1
+  const code = raw.code || raw.gift_code || raw.coupon_code || raw.voucher_code || ''
+  const title = raw.title || raw.name || raw.gift_name || 'Gift Envelope'
+  const deposit = Number(raw.deposit ?? raw.min_deposit ?? raw.recharge_amount ?? raw.condition ?? 0)
+  const gift = Number(raw.gift ?? raw.gift_amount ?? raw.amount ?? raw.reward ?? raw.bonus ?? 0)
+  const people = Number(raw.people ?? raw.total_people ?? raw.quota ?? raw.limit ?? raw.max_users ?? 1)
+  
+  let avail = people
+  if (raw.avail !== undefined && raw.avail !== null) {
+    avail = Number(raw.avail)
+  } else if (raw.available !== undefined && raw.available !== null) {
+    avail = Number(raw.available)
+  } else if (raw.remaining !== undefined && raw.remaining !== null) {
+    avail = Number(raw.remaining)
+  } else if (raw.used !== undefined && raw.used !== null) {
+    avail = Math.max(0, people - Number(raw.used))
+  } else if (raw.claimed !== undefined && raw.claimed !== null) {
+    avail = Math.max(0, people - Number(raw.claimed))
+  }
+
+  let status = 'Active'
+  if (raw.status !== undefined && raw.status !== null) {
+    if (typeof raw.status === 'string') {
+      const s = raw.status.trim().toLowerCase()
+      if (s === 'active' || s === '1' || s === 'enabled') status = 'Active'
+      else if (s === 'exhausted' || s === '0' || s === 'expired' || s === 'disabled') status = 'Exhausted'
+      else status = raw.status.charAt(0).toUpperCase() + raw.status.slice(1)
+    } else if (raw.status === 0 || raw.status === false) {
+      status = 'Exhausted'
+    } else {
+      status = avail <= 0 ? 'Exhausted' : 'Active'
+    }
+  } else {
+    status = avail <= 0 ? 'Exhausted' : 'Active'
+  }
+
+  let date = raw.date || raw.created_at || raw.createdAt || new Date().toISOString()
+  if (typeof date === 'string' && date.includes('T')) {
+    date = date.replace('T', ' ').slice(0, 19)
+  }
+
+  return {
+    id,
+    code: String(code),
+    title,
+    deposit,
+    gift,
+    people,
+    avail: Math.min(avail, people),
+    status,
+    date: String(date),
+    raw,
+  }
+}
+
+export function normalizeGiftHistory(raw, index = 0) {
+  if (!raw || typeof raw !== 'object') return null
+
+  const id = raw.id ?? raw._id ?? raw['#'] ?? index + 1
+  const code = raw.code || raw.gift_code || raw.coupon_code || ''
+  const user_id = raw.user_id || raw.uid || raw.u_id || raw.player_id || raw.userId || 'VN_' + (10000 + index)
+  const user_name = raw.user_name || raw.username || raw.player_name || raw.name || raw.mobile || 'Player'
+  const gift_amount = Number(raw.gift_amount ?? raw.amount ?? raw.bonus ?? raw.reward ?? raw.gift ?? 0)
+  const deposit_verified = Number(raw.deposit_verified ?? raw.deposit ?? raw.recharge ?? 0)
+  
+  let redeemed_at = raw.redeemed_at || raw.created_at || raw.createdAt || raw.claimed_at || raw.date || new Date().toLocaleString()
+  if (typeof redeemed_at === 'string' && redeemed_at.includes('T')) {
+    redeemed_at = redeemed_at.replace('T', ' ').slice(0, 19)
+  }
+
+  const ip_address = raw.ip_address || raw.ip || '127.0.0.1'
+  const device = raw.device || raw.user_agent || raw.device_info || 'Mobile (Android)'
+  
+  let status = 'Credited'
+  if (raw.status !== undefined && raw.status !== null) {
+    if (typeof raw.status === 'string') {
+      status = raw.status
+    } else if (raw.status === 1 || raw.status === true) {
+      status = 'Credited'
+    } else if (raw.status === 0 || raw.status === false) {
+      status = 'Pending'
+    }
+  }
+
+  return {
+    id,
+    code: String(code),
+    user_id: String(user_id),
+    user_name: String(user_name),
+    gift_amount,
+    deposit_verified,
+    redeemed_at: String(redeemed_at),
+    ip_address: String(ip_address),
+    device: String(device),
+    status: String(status),
+    raw,
+  }
+}
+

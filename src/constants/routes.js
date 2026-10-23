@@ -1,4 +1,5 @@
 export const ROUTES = {
+  LOGIN: '/login',
   DASHBOARD: '/',
   ATTENDANCE: '/attendance',
   PLAYERS: '/players',
@@ -34,4 +35,14 @@ export const ROUTES = {
   CS_DELETE_USDT: '/customer-service/delete-usdt',
   CS_BANK_NAME_MODIFICATION: '/customer-service/bank-name-modification',
   CS_GAME_COMPLAINTS: '/customer-service/game-complaints',
+  CS_DEPOSIT_PROBLEMS: '/customer-service/deposit-problems',
+  CS_WITHDRAW_PROBLEMS: '/customer-service/withdraw-problems',
+  DEPOSIT: '/deposit',
+  DEPOSIT_PENDING: '/deposit/pending',
+  DEPOSIT_SUCCESS: '/deposit/success',
+  DEPOSIT_REJECT: '/deposit/reject',
+  WITHDRAWAL: '/withdrawal',
+  WITHDRAWAL_PENDING: '/withdrawal/pending',
+  WITHDRAWAL_APPROVED: '/withdrawal/approved',
+  WITHDRAWAL_REJECT: '/withdrawal/reject',
 }

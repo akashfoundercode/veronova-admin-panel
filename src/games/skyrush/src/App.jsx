@@ -16,6 +16,15 @@ export default function App() {
     const [fairModalTab, setFairModalTab] = useState(null) // 'rules' | 'fairness' | null
     const [mobileTab, setMobileTab] = useState('game') // 'game' | 'bets'
     const [isProfileOpen, setIsProfileOpen] = useState(false)
+    const [isCrashing, setIsCrashing] = useState(false)
+
+    const handleAdminClick = () => {
+        if (game.gameState === 'FLYING') {
+            setIsCrashing(true)
+            setTimeout(() => setIsCrashing(false), 1200)
+            game.actions.forceCrash?.()
+        }
+    }
 
     return (
         <div className="aviator-app-container">
@@ -91,6 +100,97 @@ export default function App() {
                             winNotification={game.winNotification}
                         />
                     </div>
+
+                    {/* Standalone Admin Game Bottom Control Bar (Image Matching) */}
+                    {typeof window !== 'undefined' && window.parent === window && (
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(5, 1fr)',
+                            gap: '12px',
+                            padding: '8px 0',
+                            flexShrink: 0,
+                        }}>
+                            <div style={{ background: '#121316', borderRadius: '16px', padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '4px' }}>TOTAL BET</span>
+                                <span style={{ fontSize: '20px', fontWeight: '900', color: '#ffffff', fontFamily: 'monospace' }}>₹0.00</span>
+                            </div>
+                            <div style={{ background: '#121316', borderRadius: '16px', padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '4px' }}>TOTAL CASHOUT</span>
+                                <span style={{ fontSize: '20px', fontWeight: '900', color: '#ffffff', fontFamily: 'monospace' }}>₹0.00</span>
+                            </div>
+                            {/* 3. ADMIN BUTTON (RED FLYING / GREEN BETTING / CRIMSON CRASHED / AMBER CLICK) */}
+                            <div
+                                onClick={handleAdminClick}
+                                style={{
+                                    background: isCrashing
+                                        ? 'linear-gradient(135deg, #f59e0b, #eab308)'
+                                        : game.gameState === 'FLYING'
+                                        ? 'linear-gradient(135deg, #e11d48, #dc2626)'
+                                        : game.gameState === 'CRASHED'
+                                        ? 'linear-gradient(135deg, #4c0519, #881337)'
+                                        : 'linear-gradient(135deg, #059669, #10b981)',
+                                    borderRadius: '16px',
+                                    padding: '10px 8px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    textAlign: 'center',
+                                    cursor: 'pointer',
+                                    border: isCrashing
+                                        ? '2px solid #fef08a'
+                                        : game.gameState === 'FLYING'
+                                        ? '2px solid #fca5a5'
+                                        : game.gameState === 'CRASHED'
+                                        ? '2px solid #e11d48'
+                                        : '2px solid #6ee7b7',
+                                    boxShadow: isCrashing
+                                        ? '0 0 25px rgba(245, 158, 11, 0.95)'
+                                        : game.gameState === 'FLYING'
+                                        ? '0 0 20px rgba(239, 68, 68, 0.75)'
+                                        : game.gameState === 'CRASHED'
+                                        ? '0 0 10px rgba(225, 29, 72, 0.3)'
+                                        : '0 0 15px rgba(16, 185, 129, 0.4)',
+                                    transform: isCrashing ? 'scale(0.95)' : 'none',
+                                    transition: 'all 0.15s ease',
+                                    userSelect: 'none',
+                                }}
+                            >
+                                <span style={{
+                                    fontSize: '11px',
+                                    fontWeight: '900',
+                                    color: isCrashing ? '#0f172a' : '#ffffff',
+                                    letterSpacing: '0.05em',
+                                    textTransform: 'uppercase',
+                                    marginBottom: '4px'
+                                }}>
+                                    ADMIN
+                                </span>
+                                <span style={{
+                                    fontSize: '18px',
+                                    fontWeight: '900',
+                                    color: isCrashing ? '#0f172a' : '#ffffff',
+                                    textTransform: 'uppercase'
+                                }}>
+                                    {isCrashing
+                                        ? 'CRASHING...'
+                                        : game.gameState === 'FLYING'
+                                        ? 'CRASH NOW'
+                                        : game.gameState === 'CRASHED'
+                                        ? 'CRASHED'
+                                        : 'BET TIME'}
+                                </span>
+                            </div>
+                            <div style={{ background: '#121316', borderRadius: '16px', padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '4px' }}>MULTIPLIER</span>
+                                <span style={{ fontSize: '20px', fontWeight: '900', color: '#ffffff', fontFamily: 'monospace' }}>{game.gameState === 'FLYING' && game.multiplier ? `${Number(game.multiplier).toFixed(2)}x` : '₹0.00'}</span>
+                            </div>
+                            <div style={{ background: '#121316', borderRadius: '16px', padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '4px' }}>TOTAL PLAYER</span>
+                                <span style={{ fontSize: '20px', fontWeight: '900', color: '#ffffff', fontFamily: 'monospace' }}>{game.liveBots.length}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
 

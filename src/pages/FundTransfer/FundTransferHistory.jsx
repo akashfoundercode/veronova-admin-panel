@@ -1,23 +1,37 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   History, Wallet, Plus, Pencil, Trash2, IndianRupee, TrendingUp,
   Layers, CheckCircle2, Receipt, ShieldCheck, Copy, Check, Filter,
-  ArrowUpRight, Award, Search, Sparkles
+  ArrowUpRight, Award, Search, Sparkles, RefreshCw, KeyRound, LogIn, AlertCircle
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
 import fundTransferBg from '@/assets/images/FUND TRANSFER.png'
 import { ROUTES } from '@/constants/routes'
-import { getFundTransfers, saveFundTransfers } from './fundTransferStore'
+import {
+  getFundTransfers, saveFundTransfers,
+  getSummary, saveSummary,
+  saveSubtypes, normalizeFundTransferItem
+} from './fundTransferStore'
+import { apiRequest } from '@/utils/apiClient'
+import auth from '@/utils/auth'
+import { API_ENDPOINTS } from '@/constants/api'
 
 export default function FundTransferHistory() {
   const [rows, setRows] = useState(getFundTransfers)
+  const [summary, setSummary] = useState(getSummary)
   const [filterTab, setFilterTab] = useState('ALL') // ALL, ADD_FUND, BONUS, FUND_TRANSFER, HIGH_VALUE
   const [edit, setEdit] = useState(null)
   const [receiptModal, setReceiptModal] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
   const [toast, node] = useToast()
+
+  // API States
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [apiError, setApiError] = useState(null)
+  const [lastSynced, setLastSynced] = useState(null)
 
   // Copy helper
   const handleCopy = (text, id) => {
@@ -34,6 +48,73 @@ export default function FundTransferHistory() {
       return next
     })
   }
+
+  // Fetch History from /admin/fund-transfer/history
+  const fetchFundHistory = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+    setApiError(null)
+
+    const endpoints = [
+      API_ENDPOINTS.FUND_TRANSFER_HISTORY_PROXY,     // '/admin/fund-transfer/history'
+      API_ENDPOINTS.FUND_TRANSFER_HISTORY_API_PROXY, // '/api/admin/fund-transfer/history'
+    ]
+
+    let json = null
+    let usedEndpoint = null
+    let lastErr = null
+
+    for (const ep of endpoints) {
+      try {
+        console.log(`[Veronova Fund Transfer] Fetching GET ${ep}...`)
+        json = await apiRequest(ep, { method: 'GET' })
+        usedEndpoint = ep
+        console.log(`[Veronova Fund Transfer] Response from ${ep}:`, json)
+        break
+      } catch (err) {
+        lastErr = err
+        if (err.status === 404) continue
+        break
+      }
+    }
+
+    if (json) {
+      const payload = json.data || json
+      const historyList = payload.history || payload.list || (Array.isArray(payload) ? payload : null)
+
+      if (Array.isArray(historyList)) {
+        const normalized = historyList
+          .map((item, idx) => normalizeFundTransferItem(item, idx))
+          .filter(Boolean)
+        setRows(normalized)
+        saveFundTransfers(normalized)
+        setLastSynced(new Date().toLocaleTimeString())
+        if (isManual) toast(`Synced ${normalized.length} fund transfer transaction(s) from server`)
+        console.log(`[Veronova Fund Transfer] Loaded ${normalized.length} transactions from ${usedEndpoint}`)
+      }
+
+      if (payload.summary) {
+        setSummary(payload.summary)
+        saveSummary(payload.summary)
+      }
+
+      if (Array.isArray(payload.subtypes)) {
+        saveSubtypes(payload.subtypes)
+      }
+    } else if (lastErr) {
+      console.error('[Veronova Fund Transfer] Fetch error:', lastErr)
+      setApiError(lastErr.message || 'Could not fetch fund transfer history')
+      if (isManual) toast(`Sync failed: ${lastErr.message}`)
+    }
+
+    setIsLoading(false)
+    setIsRefreshing(false)
+  }, [toast])
+
+  // Initial load
+  useEffect(() => {
+    fetchFundHistory()
+  }, [fetchFundHistory])
 
   const handleSaveEdit = (e) => {
     e.preventDefault()
@@ -212,13 +293,40 @@ export default function FundTransferHistory() {
           { label: 'Transfer Records' },
         ]}
       >
-        <Link
-          to={ROUTES.FUND_TRANSFER_ADD}
-          className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
-        >
-          <Plus size={16} /> New Fund Transfer
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => fetchFundHistory(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm disabled:opacity-50 cursor-pointer"
+            title="Sync with Backend Fund Transfer API"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span>{isRefreshing ? 'Syncing...' : 'Sync Live'}</span>
+          </button>
+          <Link
+            to={ROUTES.FUND_TRANSFER_ADD}
+            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
+          >
+            <Plus size={16} /> New Fund Transfer
+          </Link>
+        </div>
       </PageBanner>
+
+      {/* API Notice if any */}
+      {apiError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-600 shrink-0" />
+            <span>Notice: {apiError}</span>
+          </div>
+          <button
+            onClick={() => fetchFundHistory(true)}
+            className="flex items-center gap-1 rounded bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-200 transition"
+          >
+            <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} /> Retry
+          </button>
+        </div>
+      )}
 
       {/* Compact, Sleek Treasury Disbursement & Transfer Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -226,9 +334,9 @@ export default function FundTransferHistory() {
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Transferred Volume</p>
             <h3 className="text-xl font-bold text-slate-900 mt-0.5 tracking-tight font-mono">
-              ₹{totalTransferred.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{Number(totalTransferred).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </h3>
-            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{rows.length} settled events</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{summary?.total_transactions ?? rows.length} settled events</p>
           </div>
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
             <CheckCircle2 size={18} />
@@ -456,6 +564,10 @@ export default function FundTransferHistory() {
           </form>
         </Modal>
       )}
+
+
+
+
 
       {node}
     </div>

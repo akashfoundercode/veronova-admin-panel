@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowUpDown, Download, Search } from 'lucide-react'
+import VeronovaLoader from './ui/VeronovaLoader'
 
 export function exportCSV(name, columns, rows) {
   const cols = columns.filter((c) => c.key)
@@ -14,7 +15,7 @@ export function exportCSV(name, columns, rows) {
 export default function DataTable({
   columns, rows, placeholder = 'Search...', left = null, exportName, exportLabel = 'Export Excel',
   unit = 'entries', hideSearch = false, hideSize = false, rowKey = 'id', sizes = [10, 25, 50, 100], defaultSize = 10,
-  stripe = true, extraRight = null,
+  stripe = true, extraRight = null, loading = false, loadingText = 'Loading records...',
 }) {
   const [q, setQ] = useState('')
   const [size, setSize] = useState(defaultSize)
@@ -101,16 +102,23 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody>
-            {view.length === 0 && (
-              <tr><td colSpan={columns.length} className="td py-10 text-center text-slate-400">No matching records found</td></tr>
-            )}
-            {view.map((r, i) => (
-              <tr key={r[rowKey] ?? i} className={stripe && i % 2 === 1 ? 'bg-blue-50/40' : ''}>
-                {columns.map((c, j) => (
-                  <td key={j} className="td">{c.render ? c.render(r) : r[c.key]}</td>
-                ))}
+            {loading ? (
+              <tr>
+                <td colSpan={columns.length} className="td py-12 text-center">
+                  <VeronovaLoader size="md" text={loadingText} subtitle="VERONOVA DATA ENGINE" />
+                </td>
               </tr>
-            ))}
+            ) : view.length === 0 ? (
+              <tr><td colSpan={columns.length} className="td py-10 text-center text-slate-400">No matching records found</td></tr>
+            ) : (
+              view.map((r, i) => (
+                <tr key={r[rowKey] ?? i} className={stripe && i % 2 === 1 ? 'bg-blue-50/40' : ''}>
+                  {columns.map((c, j) => (
+                    <td key={j} className="td">{c.render ? c.render(r) : r[c.key]}</td>
+                  ))}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

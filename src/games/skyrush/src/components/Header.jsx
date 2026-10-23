@@ -47,12 +47,21 @@ function Header({
         </button>
       </div>
 
-      {/* Center Online Count */}
+      {/* Center Online Count + Live Socket Status */}
       <div className="header-center">
         <div className="online-badge">
           <span className="online-dot" />
           <span>{onlineCount.toLocaleString()} online</span>
         </div>
+        {socketStatus && (
+          <div
+            className={`socket-badge ${socketStatus.connected ? '' : 'disconnected'}`}
+            title={`Server: ${socketStatus.serverUrl || 'https://fcsocket.site'} (${socketStatus.channel || 'demobdg_aviator'})`}
+          >
+            <span className="socket-dot" />
+            <span>{socketStatus.connected ? 'FC LIVE' : 'CONNECTING'}</span>
+          </div>
+        )}
       </div>
 
       {/* Right Controls: Balance + Sound + Fair */}

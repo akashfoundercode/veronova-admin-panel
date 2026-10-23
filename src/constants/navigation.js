@@ -4,7 +4,7 @@ import {
   Megaphone, Image, MessageSquare, CreditCard, ArrowDownToLine, ArrowUpFromLine,
   Headphones, Percent, Dices, Star, IndianRupee, TrendingUp, Receipt, Info, Flame,
   Send, History, Landmark, KeyRound, FileEdit, Contact, Trash2, Edit3, AlertCircle,
-  Home, Globe, Sparkles
+  Home, Globe, Sparkles, CheckCircle2
 } from 'lucide-react'
 import { ROUTES } from './routes'
 
@@ -64,9 +64,28 @@ export const sidebarMenus = [
   { to: '/gift-history', label: 'Gift Redeemed History', icon: CreditCard },
   { to: ROUTES.BANNERS, label: 'Activity & Banner', icon: Image },
   { to: '/feedback', label: 'Feedback', icon: MessageSquare },
-  { to: '/payments-limit', label: 'Payments Limit', icon: Receipt },
-  { to: '/deposit', label: 'Deposit', icon: ArrowDownToLine },
-  { to: '/withdrawal', label: 'Withdrawal', icon: ArrowUpFromLine },
+  {
+    label: 'Deposit',
+    icon: ArrowDownToLine,
+    key: 'deposit',
+    children: [
+      { to: ROUTES.DEPOSIT_PENDING, label: 'Pending Deposits', icon: Clock },
+      { to: ROUTES.DEPOSIT_SUCCESS, label: 'Success Deposits', icon: CheckCircle2 },
+      { to: ROUTES.DEPOSIT_REJECT, label: 'Reject Deposits', icon: AlertCircle },
+      { to: ROUTES.DEPOSIT, label: 'All Deposits', icon: ArrowDownToLine },
+    ],
+  },
+  {
+    label: 'Withdrawal',
+    icon: ArrowUpFromLine,
+    key: 'withdrawal',
+    children: [
+      { to: ROUTES.WITHDRAWAL_PENDING, label: 'Pending Withdrawals', icon: Clock },
+      { to: ROUTES.WITHDRAWAL_APPROVED, label: 'Approved Withdrawals', icon: CheckCircle2 },
+      { to: ROUTES.WITHDRAWAL_REJECT, label: 'Reject Withdrawals', icon: AlertCircle },
+      { to: ROUTES.WITHDRAWAL, label: 'All Withdrawals', icon: ArrowUpFromLine },
+    ],
+  },
   {
     label: 'Customer Service',
     icon: Headphones,
@@ -79,11 +98,10 @@ export const sidebarMenus = [
       { to: ROUTES.CS_DELETE_USDT, label: 'Delete Old USDT', icon: Trash2 },
       { to: ROUTES.CS_BANK_NAME_MODIFICATION, label: 'Bank Name Modifications', icon: Edit3 },
       { to: ROUTES.CS_GAME_COMPLAINTS, label: 'Game Issue Complaints', icon: AlertCircle },
+      { to: ROUTES.CS_DEPOSIT_PROBLEMS, label: 'Deposit Problems', icon: ArrowDownToLine },
+      { to: ROUTES.CS_WITHDRAW_PROBLEMS, label: 'Withdraw Problems', icon: ArrowUpFromLine },
     ],
   },
   { to: '/profit-loss', label: 'Profit/Loss-Admin Details', icon: TrendingUp },
   { to: '/support', label: 'Support Setting', icon: Info },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/notifications', label: 'Notifications', icon: Bell, badge: 3 },
-  { to: '/settings', label: 'Settings', icon: Settings },
 ]

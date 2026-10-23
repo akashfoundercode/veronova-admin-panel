@@ -176,3 +176,54 @@ export function saveSalaryRecords(records) {
   }
 }
 
+export function normalizeSalaryRecord(raw, index = 0) {
+  const id = Number(raw.id ?? index + 1)
+  const userId = raw.user_id || raw.u_id || raw.userId || `VN_${10000 + id}`
+  const userName = raw.user || raw.user_name || raw.username || `Agent ${id}`
+  const role = raw.role || 'Agent Partner'
+  const active = Number(raw.active ?? raw.active_members ?? raw.active_downlines ?? 0)
+  const down = Number(raw.down ?? raw.downlines ?? raw.total_downlines ?? 0)
+  const dDep = Number(raw.dDep ?? raw.daily_deposit ?? raw.today_deposit ?? 0)
+  const dWd = Number(raw.dWd ?? raw.daily_withdrawal ?? raw.today_withdrawal ?? 0)
+  const mDep = Number(raw.mDep ?? raw.monthly_deposit ?? raw.total_deposit ?? 0)
+  const mWd = Number(raw.mWd ?? raw.monthly_withdrawal ?? raw.total_withdrawal ?? 0)
+  const amount = Number(raw.amount ?? raw.salary ?? raw.salary_amount ?? 0)
+  const rawType = (raw.type || raw.salary_type || raw.cycle || 'monthly').toString().toLowerCase()
+  const type = rawType.includes('daily') ? 'daily' : (rawType.includes('none') ? 'none' : 'monthly')
+  const status = raw.status === 'Paid' || raw.status === 'paid' || raw.is_paid === true ? 'Paid' : 'Pending'
+  const date = raw.date || raw.created_at || raw.updated_at || 'Just Now'
+  const remarks = raw.remarks || raw.notes || 'Agent performance payroll'
+
+  const colors = [
+    'from-blue-600 to-indigo-600',
+    'from-purple-600 to-pink-600',
+    'from-amber-500 to-orange-600',
+    'from-emerald-500 to-teal-600',
+    'from-rose-500 to-red-600',
+    'from-cyan-600 to-blue-700',
+  ]
+  const avatarColor = raw.avatar_color || colors[(id - 1) % colors.length]
+
+  return {
+    id,
+    user_id: userId,
+    user: userName,
+    user_name: userName,
+    role,
+    avatar_color: avatarColor,
+    active,
+    down,
+    dDep,
+    dWd,
+    mDep,
+    mWd,
+    amount,
+    type,
+    status,
+    date,
+    sel: Boolean(raw.sel),
+    remarks,
+    raw,
+  }
+}
+

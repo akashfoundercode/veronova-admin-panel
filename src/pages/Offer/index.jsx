@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Megaphone, Plus, Pencil, Trash2, Gift, Sparkles, TrendingUp,
   Calendar, CheckCircle2, AlertCircle, Clock, Copy, Check, Eye,
@@ -7,15 +7,58 @@ import {
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
 import offerBg from '@/assets/images/offer.png'
-import { getOffers, saveOffers } from './offerStore'
+import { getOffers, saveOffers, normalizeOffer } from './offerStore'
 
 export default function Offer() {
   const [rows, setRows] = useState(getOffers)
   const [filterTab, setFilterTab] = useState('ALL') // ALL, DEPOSIT, CASHBACK, RELOAD, VIP, ACTIVE
   const [modal, setModal] = useState(null) // { mode: 'add' | 'edit', row }
   const [viewOffer, setViewOffer] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastSynced, setLastSynced] = useState(null)
   const [toast, node] = useToast()
+
+  // Fetch all offers from /admin/offers
+  const loadOffers = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+
+    try {
+      console.log(`[Veronova Offers] Fetching promotions from: ${API_ENDPOINTS.OFFERS_PROXY}`)
+      const json = await apiRequest(API_ENDPOINTS.OFFERS_PROXY, { method: 'GET' })
+
+      if (json && (json.status === 200 || json.data)) {
+        const payload = json.data || json
+        const rawList =
+          payload.list ||
+          payload.offers ||
+          payload.history ||
+          payload.promotions ||
+          (Array.isArray(payload) ? payload : null)
+
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const formatted = rawList.map((item, idx) => normalizeOffer(item, idx))
+          setRows(formatted)
+          saveOffers(formatted)
+          setLastSynced(new Date().toLocaleTimeString())
+          console.log(`[Veronova Offers] Loaded ${formatted.length} promotions from backend`)
+        }
+      }
+    } catch (err) {
+      console.warn('[Veronova Offers] Error fetching live offers, using local cache:', err.message)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadOffers()
+  }, [loadOffers])
 
   // Persist Rows
   const persistRows = (updater) => {
@@ -56,15 +99,31 @@ export default function Offer() {
     })
   }, [rows, filterTab])
 
-  // Toggle Status
-  const toggleOfferStatus = (offer) => {
+  // Toggle Status via API: /admin/offers/:id
+  const toggleOfferStatus = async (offer) => {
     const next = offer.status === 'Active' ? 'Expired' : 'Active'
     updateRow(offer.id, { status: next })
     toast(`Offer #${offer.id} status changed to ${next}`)
+
+    try {
+      const updateUrl = API_ENDPOINTS.OFFERS_ITEM_PROXY(offer.id)
+      console.log(`[Veronova Offers] Updating status via API: ${updateUrl}`)
+      await apiRequest(updateUrl, {
+        method: 'PUT',
+        body: JSON.stringify({ ...offer, status: next }),
+      }).catch(async () => {
+        await apiRequest(updateUrl, {
+          method: 'POST',
+          body: JSON.stringify({ ...offer, status: next }),
+        }).catch(() => null)
+      })
+    } catch (err) {
+      console.warn(`[Veronova Offers] Status update for #${offer.id} failed:`, err.message)
+    }
   }
 
-  // Save Add/Edit Offer
-  const handleSaveOffer = (e) => {
+  // Save Add/Edit Offer via API: POST /admin/offers or PUT /admin/offers/:id
+  const handleSaveOffer = async (e) => {
     e.preventDefault()
     const { title, bonus, min_deposit, max_bonus, type, status, start_date, end_date, tagline } = modal.row
 
@@ -73,7 +132,7 @@ export default function Offer() {
     }
 
     if (modal.mode === 'add') {
-      const newOffer = {
+      let newOffer = {
         id: Math.max(0, ...rows.map((r) => r.id)) + 1,
         title,
         tagline: tagline || 'Exclusive platform promotion',
@@ -88,10 +147,26 @@ export default function Offer() {
         end_date: end_date || '2026-12-31',
         badge_color: 'from-blue-600 to-indigo-600',
       }
+
+      // Live POST /admin/offers
+      try {
+        console.log(`[Veronova Offers] Creating offer via API: ${API_ENDPOINTS.OFFERS_PROXY}`)
+        const res = await apiRequest(API_ENDPOINTS.OFFERS_PROXY, {
+          method: 'POST',
+          body: JSON.stringify(newOffer),
+        })
+        const created = res?.data || res?.offer || res
+        if (created && (created.id || created.title)) {
+          newOffer = normalizeOffer(created)
+        }
+      } catch (err) {
+        console.warn('[Veronova Offers] POST /admin/offers failed, saved locally:', err.message)
+      }
+
       persistRows((prev) => [newOffer, ...prev])
       toast(`New offer "${title}" created successfully!`)
     } else {
-      updateRow(modal.row.id, {
+      const patch = {
         title,
         tagline,
         bonus,
@@ -101,17 +176,50 @@ export default function Offer() {
         status,
         start_date,
         end_date,
-      })
+      }
+
+      updateRow(modal.row.id, patch)
+
+      // Live PUT /admin/offers/:id
+      try {
+        const editUrl = API_ENDPOINTS.OFFERS_ITEM_PROXY(modal.row.id)
+        console.log(`[Veronova Offers] Updating offer via API: ${editUrl}`)
+        await apiRequest(editUrl, {
+          method: 'PUT',
+          body: JSON.stringify({ id: modal.row.id, ...patch }),
+        }).catch(async () => {
+          await apiRequest(editUrl, {
+            method: 'POST',
+            body: JSON.stringify({ id: modal.row.id, ...patch }),
+          }).catch(() => null)
+        })
+      } catch (err) {
+        console.warn(`[Veronova Offers] Update /admin/offers/${modal.row.id} failed:`, err.message)
+      }
+
       toast(`Offer #${modal.row.id} updated successfully`)
     }
     setModal(null)
   }
 
-  // Delete Offer
-  const handleDeleteOffer = (id) => {
-    if (confirm('Are you sure you want to delete this promotion?')) {
-      persistRows((prev) => prev.filter((r) => r.id !== id))
-      toast('Offer deleted')
+  // Delete Offer via API: DELETE /admin/offers/:id
+  const handleDeleteOffer = async (id) => {
+    if (!confirm('Are you sure you want to delete this promotion?')) return
+
+    persistRows((prev) => prev.filter((r) => r.id !== id))
+    toast('Offer deleted')
+
+    try {
+      const deleteUrl = API_ENDPOINTS.OFFERS_ITEM_PROXY(id)
+      console.log(`[Veronova Offers] Deleting offer via API: ${deleteUrl}`)
+      await apiRequest(deleteUrl, { method: 'DELETE' }).catch(async () => {
+        await apiRequest(deleteUrl, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'delete', _method: 'DELETE' }),
+        }).catch(() => null)
+      })
+    } catch (err) {
+      console.warn(`[Veronova Offers] DELETE /admin/offers/${id} failed:`, err.message)
     }
   }
 
@@ -303,27 +411,44 @@ export default function Offer() {
           { label: 'Promotions Console' },
         ]}
       >
-        <button
-          onClick={() =>
-            setModal({
-              mode: 'add',
-              row: {
-                title: '',
-                tagline: '',
-                bonus: '50% Match',
-                min_deposit: 500,
-                max_bonus: 2500,
-                type: 'Deposit Bonus',
-                status: 'Active',
-                start_date: new Date().toISOString().slice(0, 10),
-                end_date: '2026-11-30',
-              },
-            })
-          }
-          className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
-        >
-          <Plus size={16} /> Create New Campaign
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {lastSynced && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-xs px-2.5 py-1 text-[11px] font-semibold text-white/90">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Synced: {lastSynced}
+            </span>
+          )}
+          <button
+            onClick={() => loadOffers(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs px-3 py-2 text-xs font-bold text-white transition disabled:opacity-50"
+            title="Sync Live Promotions from Backend"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Sync Live</span>
+          </button>
+          <button
+            onClick={() =>
+              setModal({
+                mode: 'add',
+                row: {
+                  title: '',
+                  tagline: '',
+                  bonus: '50% Match',
+                  min_deposit: 500,
+                  max_bonus: 2500,
+                  type: 'Deposit Bonus',
+                  status: 'Active',
+                  start_date: new Date().toISOString().slice(0, 10),
+                  end_date: '2026-11-30',
+                },
+              })
+            }
+            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
+          >
+            <Plus size={16} /> Create New Campaign
+          </button>
+        </div>
       </PageBanner>
 
       {/* Compact, Sleek Promotion & Campaign Stats */}

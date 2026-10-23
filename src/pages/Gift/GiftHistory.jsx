@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CreditCard, Gift, ArrowLeft, Copy, Check, Search, Calendar,
@@ -8,7 +8,9 @@ import {
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
-import { getGifts, saveGifts, getRedemptions, saveRedemptions } from './giftStore'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
+import { getGifts, saveGifts, getRedemptions, saveRedemptions, normalizeGiftHistory } from './giftStore'
 
 export default function GiftHistory() {
   const [rows, setRows] = useState(getRedemptions)
@@ -17,6 +19,9 @@ export default function GiftHistory() {
   const [copiedKey, setCopiedKey] = useState(null)
   const [voucherModal, setVoucherModal] = useState(null)
   const [simulateModal, setSimulateModal] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastSynced, setLastSynced] = useState(null)
   
   // Simulation form
   const [simCode, setSimCode] = useState('805085313370438')
@@ -24,6 +29,45 @@ export default function GiftHistory() {
   const [simUserId, setSimUserId] = useState('VN_55109')
 
   const [toast, node] = useToast()
+
+  // Fetch gift redemption history from /admin/gift-history
+  const loadGiftHistory = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+
+    try {
+      console.log(`[Veronova Gift History] Fetching redemptions from: ${API_ENDPOINTS.GIFT_HISTORY_PROXY}`)
+      const json = await apiRequest(API_ENDPOINTS.GIFT_HISTORY_PROXY, { method: 'GET' })
+
+      if (json && (json.status === 200 || json.data || Array.isArray(json))) {
+        const payload = json.data || json
+        const rawList =
+          payload.list ||
+          payload.history ||
+          payload.redemptions ||
+          payload.data ||
+          payload.rows ||
+          (Array.isArray(payload) ? payload : null)
+
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const formatted = rawList.map((item, idx) => normalizeGiftHistory(item, idx)).filter(Boolean)
+          setRows(formatted)
+          saveRedemptions(formatted)
+          setLastSynced(new Date().toLocaleTimeString())
+          console.log(`[Veronova Gift History] Loaded ${formatted.length} redemption records from backend`)
+        }
+      }
+    } catch (err) {
+      console.warn('[Veronova Gift History] Error fetching live history, using local cache:', err.message)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadGiftHistory()
+  }, [loadGiftHistory])
 
   // Persist Redemptions
   const persistRedemptions = (updater) => {
@@ -256,6 +300,21 @@ export default function GiftHistory() {
         ]}
       >
         <div className="flex flex-wrap items-center gap-2">
+          {lastSynced && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-xs px-2.5 py-1 text-[11px] font-semibold text-white/90">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Synced: {lastSynced}
+            </span>
+          )}
+          <button
+            onClick={() => loadGiftHistory(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs px-3 py-2 text-xs font-bold text-white transition disabled:opacity-50"
+            title="Sync Live Redemptions from Backend"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Sync Live</span>
+          </button>
           <Link
             to="/gift"
             className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm"

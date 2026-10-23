@@ -1,0 +1,4817 @@
+Foundation Layer
+\u0010\u0012\u001cChapter
+\u001cTopic
+\u001cPurpose
+\u0012\u001c1
+\u001cReact Architecture Fundamentals
+\u001cReact project ka base structure aur thinking process
+\u0012\u001c2
+\u001cFolder Structure
+\u001cProject files ko organize karna
+\u0012\u001c3
+\u001cNaming Conventions
+\u001cConsistent naming standards
+\u0012\u001c4
+\u001cTailwind Standards
+\u001cTailwind CSS ka standard usage
+\u0012\u001c5
+\u001cReusable Components
+\u001cReusable UI components banana
+\u0012\u001c6
+\u001cLayout Architecture
+\u001cDashboard, Auth, Main layouts
+\u0012\u001c7
+\u001cRouting Structure
+\u001cReact Router standards
+\u0012\u001c8
+\u001cAPI Layer
+\u001cAPI integration structure
+\u0011-
+Data \u0026 State Layer
+\u0010\u0012\u001cChapter
+\u001cTopic
+\u001cPurpose
+\u0012\u001c9
+\u001cReact Query
+\u001cServer state management
+\u0012\u001c10
+\u001cAuthentication
+\u001cLogin, Logout, Protected Routes
+\u0012\u001c11
+\u001cForms \u0026 Validation
+\u001cReact Hook Form + Zod
+\u0012\u001c12
+\u001cState Management
+\u001cRedux Toolkit standards
+\u0012\u001c13
+\u001cCustom Hooks
+\u001cReusable business logic
+\u0012\u001c14
+\u001cError Handling
+\u001cLoading, Error, Empty States
+\u0012\u001c15
+\u001cProduction Project Structure
+\u001cReal project implementation
+\u0011-
+Team \u0026 Performance Layer
+\u0010\u0012\u001cChapter
+\u001cTopic
+\u001cPurpose
+\u0012\u001c16
+\u001cGit Workflow
+\u001cBranching, Commits, PR Flow
+\u0012\u001c17
+\u001cPerformance Optimization
+\u001cLazy Loading, Memoization, Optimization
+\u0012\u001c18
+\u001cAdvanced Project Standards
+\u001cEnterprise scalability
+\u0012\u001c19
+\u001cTesting Standards
+\u001cUnit, Integration, E2E Testing
+\u0012\u001c20
+\u001cEnterprise Project Blueprint
+\u001cComplete production architecture
+\u0011-
+Enterprise Standards Layer
+\u0010\u0012\u001cChapter
+\u001cTopic
+\u001cPurpose
+\u0012\u001c21
+\u001cUI/UX Standards
+\u001cConsistent design system
+\u0012\u001c22
+\u001cSecurity Standards
+\u001cAuthentication, Authorization, Security
+\u0012\u001c23
+\u001cAPI Contract Standards
+\u001cFrontend + Backend agreement
+\u0012\u001c24
+\u001cReusable DataTable Architecture
+\u001cUniversal table system
+\u0012\u001c25
+\u001cNotification System
+\u001cToast, In-App, Push Notifications
+\u0012\u001c26
+\u001cSocket Architecture
+\u001cReal-time applications
+\u0012\u001c27
+\u001cDeployment \u0026 DevOps
+\u001cBuild, Deploy, CI/CD
+\u0012\u001c28
+\u001cDocumentation Standards
+\u001cREADME, API Docs, Project Docs
+\u0012\u001c29
+\u001cTeam Coding Rules
+\u001cEngineering discipline
+\u0012\u001c30
+\u001cEnterprise Starter Template
+\u001cReady-to-use project blueprint
+\u0011-
+Complete Development Flow
+Project Start
+     ↓
+Architecture (1-8)
+     ↓
+State \u0026 Data (9-15)
+     ↓
+Team Process (16-20)
+     ↓
+Enterprise Standards (21-30)
+     ↓
+Production Ready Application
+-
+What Each Developer Must Learn
+Junior Developer
+Must Complete:
+1-15
+Topics:
+React
+
+Components
+
+Tailwind
+
+Routing
+
+Forms
+
+Redux
+
+React Query
+
+API Integration
+-
+Mid-Level Developer
+Must Complete:
+1-20
+Additional Topics:
+Testing
+
+Performance
+
+Architecture
+
+Git Workflow
+
+Project Structure
+-
+Senior Developer
+Must Complete:
+1-30
+Additional Topics:
+Security
+
+DevOps
+
+Socket
+
+Notifications
+
+Documentation
+
+Team Rules
+
+Scalability
+-
+FounderCode Architecture Summary
+Pages
+  ↓
+
+Reusable Components
+  ↓
+
+Custom Hooks
+  ↓
+
+React Query
+  ↓
+
+Services
+  ↓
+
+Axios
+  ↓
+
+API
+-
+State Management Summary
+UI State
+  ↓
+useState
+
+Global State
+  ↓
+Redux Toolkit
+
+Server State
+  ↓
+React Query
+-
+Form Flow Summary
+Form
+  ↓
+
+React Hook Form
+  ↓
+
+Zod Validation
+  ↓
+
+Mutation
+  ↓
+
+API
+  ↓
+
+Toast
+-
+Authentication Flow Summary
+Login
+  ↓
+
+Token
+  ↓
+
+Redux
+  ↓
+
+Protected Routes
+  ↓
+
+Permissions
+  ↓
+
+Pages
+-
+Socket Flow Summary
+Login
+  ↓
+
+Socket Connect
+  ↓
+
+Listen Events
+  ↓
+
+React Query Refresh
+  ↓
+
+UI Update
+-
+Notification Flow Summary
+Action
+  ↓
+
+API
+  ↓
+
+Success
+  ↓
+
+Toast
+
+OR
+
+Backend Event
+  ↓
+
+Notification
+  ↓
+
+Bell Icon
+-
+Deployment Flow Summary
+Development
+  ↓
+
+Feature Branch
+  ↓
+
+PR
+  ↓
+
+Review
+  ↓
+
+Testing
+  ↓
+
+Build
+  ↓
+
+Staging
+  ↓
+
+Production
+-
+FounderCode Golden Rules (Top 20)
+1. Feature Based Architecture
+
+2. Reusable Components First
+
+3. No Direct API Calls In Components
+
+4. React Query For Server Data
+
+5. Redux Only For Global State
+
+6. RHF + Zod For Forms
+
+7. Loading State Mandatory
+
+8. Error State Mandatory
+
+9. Empty State Mandatory
+
+10. Role + Permission System
+
+11. Shared DataTable
+
+12. Shared Notification System
+
+13. Socket Service Centralized
+
+14. No Hardcoded Routes
+
+15. No Hardcoded API URLs
+
+16. No Console Logs In Production
+
+17. Documentation Required
+
+18. PR Mandatory
+
+19. Review Mandatory
+
+20. Build Must Pass Before Merge
+-
+Final FounderCode Tech Stack
+React 19
+
+React Router
+
+Tailwind CSS
+
+Axios
+
+TanStack Query
+
+Redux Toolkit
+
+React Hook Form
+
+Zod
+
+React Hot Toast
+
+Socket.io
+
+React Error Boundary
+
+Vitest
+
+React Testing Library
+
+Playwright
+-
+Final Goal Of This SOP
+Agar koi naya developer team join kare:
+Day 1
+↓
+Project Open
+↓
+SOP Read
+↓
+Architecture Understand
+↓
+First Feature Start
+Chapter 1 - Project Architecture Overview (With Real Examples)
+-
+1.1 Socho Hum Kya Bana Rahe Hain
+Maan lo hum ek Admin Panel bana rahe hain.
+Features:
+Dashboard
+Users
+Roles
+Products
+Orders
+Settings
+Ab agar har developer apne hisab se code likhega to project 2-3 mahine me kharab ho jayega.
+Isliye architecture define karna zaroori hai.
+-
+1.2 Wrong vs Correct Structure
+❌ Wrong
+src/
+
+Dashboard.jsx
+User.jsx
+AddUser.jsx
+EditUser.jsx
+Product.jsx
+api.js
+helper.js
+Problem:
+Kuch samajh nahi aa raha
+User files alag alag padi hain
+Product files alag padi hain
+New developer confuse ho jayega
+-
+✅ Correct
+src/
+
+pages/
+│
+├── Users/
+│   ├── UserList.jsx
+│   ├── UserCreate.jsx
+│   └── UserEdit.jsx
+│
+├── Products/
+│   ├── ProductList.jsx
+│   ├── ProductCreate.jsx
+│   └── ProductEdit.jsx
+Ab kisi ko User module par kaam karna hai to seedha Users folder khol dega.
+-
+1.3 Reusability
+Scenario
+Dashboard me 20 jagah button use ho raha hai.
+-
+❌ Wrong
+\u003cbutton className\u003d\Example:
+Modal
+Button
+Input
+Table
+Loader
+Agar answer Yes hai:
+components/
+me banao.
+-
+Question 2
+Kya ye API dusri jagah use ho sakti hai?
+getUsers()
+To:
+services/
+me rakho.
+-
+Question 3
+Kya ye logic dusri jagah use ho sakta hai?
+Pagination Logic
+Search Logic
+Debounce Logic
+To:
+hooks/
+me rakho.
+-
+Final Architecture Mindset
+Developer ko code likhte waqt hamesha ye sochna chahiye:
+Kya ye cheez future me reuse hogi?
+Agar:
+UI hai → components
+API hai → services
+Logic hai → hooks
+Constants hain → constants
+Helper functions hain → utils
+Chapter 2 - Folder Structure Standards (React + Tailwind)
+Objective
+Is chapter ke baad har developer ko pata hona chahiye:
+Kaunsa code kis folder me jayega
+Naya feature kaise create karna hai
+Reusable components kahan rakhenge
+APIs kahan likhenge
+Hooks kahan banenge
+New developer project ka structure 5 minute me samajh sake
+-
+2.1 Production Level Folder Structure
+src/
+│
+├── assets/
+│
+├── components/
+│
+├── pages/
+│
+├── services/
+│
+├── hooks/
+│
+├── layouts/
+│
+├── routes/
+│
+├── constants/
+│
+├── utils/
+│
+├── context/
+│
+├── store/
+│
+├── App.jsx
+│
+└── main.jsx
+-
+2.2 Assets Folder
+Yahan static files rakhi jayengi.
+assets/
+│
+├── images/
+│
+├── icons/
+│
+├── logos/
+│
+└── fonts/
+Example
+assets/
+│
+├── logos/
+│   └── logo.svg
+│
+├── images/
+│   └── login-banner.png
+│
+├── icons/
+│   └── dashboard.svg
+-
+Use Example
+import Logo from \│   ├── userSlice.js
+-
+Example
+const user \u003d
+useSelector(state \u003d\u003e state.auth.user);
+-
+2.13 Feature Based Structure (Recommended)
+Jab project bada ho jaye.
+Example
+pages/
+│
+├── Users/
+│
+│   ├── components/
+│   │   ├── UserTable.jsx
+│   │   └── UserFilter.jsx
+│
+│   ├── services/
+│   │   └── userService.js
+│
+│   ├── hooks/
+│   │   └── useUsers.js
+│
+│   ├── UserList.jsx
+│   ├── UserCreate.jsx
+│   └── UserEdit.jsx
+-
+Benefit
+Agar kisi developer ko User Module par kaam karna hai:
+Users/
+folder kholte hi sab mil jayega.
+-
+Folder Selection Rule
+Code likhne se pehle ye socho:
+\u0010\u0012\u001cAgar Ye Hai
+\u001cTo Yahan Jayega
+\u0012\u001cButton
+\u001ccomponents
+\u0012\u001cModal
+\u001ccomponents
+\u0012\u001cUser Page
+\u001cpages
+\u0012\u001cLogin Page
+\u001cpages
+\u0012\u001cAPI Call
+\u001cservices
+\u0012\u001cCustom Hook
+\u001chooks
+\u0012\u001cRoute List
+\u001croutes
+\u0012\u001cConstant Values
+\u001cconstants
+\u0012\u001cHelper Functions
+\u001cutils
+\u0012\u001cGlobal State
+\u001cstore
+\u0012\u001cLayout
+\u001clayouts
+\u0012\u001cImages
+\u001cassets
+\u0011-
+Chapter 2 Summary
+Developer ko yaad rehna chahiye:
+UI Reusable      → components
+Screens          → pages
+API Calls        → services
+Business Logic   → hooks
+Routes           → routes
+Constants        → constants
+Helpers          → utils
+Redux            → store
+Layouts          → layouts
+Images           → assets
+Chapter 3 - Naming Conventions \u0026 File Standards
+Objective
+Is chapter ke baad har developer ko pata hona chahiye:
+File ka naam kaise rakhna hai
+Component ka naam kaise rakhna hai
+Variable naming kaise karni hai
+Function naming kaise karni hai
+API functions kaise naam rakhne hain
+Folder naming kaise karni hai
+Sabse important baat:\u000b Agar 10 developers ek project par kaam kar rahe hain to sabki naming style same honi chahiye.
+-
+3.1 Component Naming
+React Component hamesha PascalCase me hoga.
+✅ Correct
+UserCard.jsx
+
+ProductTable.jsx
+
+DashboardHeader.jsx
+
+LoginForm.jsx
+-
+❌ Wrong
+userCard.jsx
+
+producttable.jsx
+
+dashboard_header.jsx
+
+abc.jsx
+-
+Example
+const UserCard \u003d () \u003d\u003e {
+ return \u003cdiv\u003eUser Card\u003c/div\u003e;
+};
+
+export default UserCard;
+-
+3.2 Folder Naming
+Feature folders bhi PascalCase me honge.
+✅ Correct
+pages/
+
+├── Users
+├── Products
+├── Dashboard
+├── Orders
+-
+❌ Wrong
+users
+products
+user-management
+product_list
+-
+3.3 Variable Naming
+Variables hamesha camelCase me.
+✅ Correct
+const userList \u003d [];
+
+const totalAmount \u003d 5000;
+
+const currentPage \u003d 1;
+
+const selectedUser \u003d {};
+-
+❌ Wrong
+const UserList \u003d [];
+
+const TOTAL_AMOUNT \u003d 5000;
+
+const user_list \u003d [];
+-
+Real Example
+❌ Wrong
+const data \u003d response.data;
+2 din baad kisi ko nahi pata data kya hai.
+-
+✅ Correct
+const userList \u003d response.data;
+Ya
+const productList \u003d response.data;
+Naam dekhte hi samajh aa gaya.
+-
+3.4 Boolean Naming
+Boolean variable ka naam hamesha:
+is
+has
+can
+should
+se start hoga.
+-
+✅ Correct
+const isLoading \u003d true;
+
+const isLoggedIn \u003d false;
+
+const hasPermission \u003d true;
+
+const canEdit \u003d false;
+-
+❌ Wrong
+const loading \u003d true;
+
+const login \u003d true;
+
+const permission \u003d false;
+-
+Example
+if (isLoading) {
+ return \u003cLoader /\u003e;
+}
+Read karne me easy.
+-
+3.5 Function Naming
+Function ka naam uska action batana chahiye.
+-
+Users
+✅ Correct
+getUsers()
+
+createUser()
+
+updateUser()
+
+deleteUser()
+-
+❌ Wrong
+user()
+
+callApi()
+
+fetch()
+
+handle()
+Naam se kaam samajhna chahiye.
+-
+Example
+const createUser \u003d async () \u003d\u003e {
+  await api.post(\-
+Better
+const buttonStyle \u003d
+\Chapter 4 - Tailwind CSS Standards \u0026 Design System
+Objective
+Is chapter ke baad har developer ko pata hona chahiye:
+Tailwind ka proper use kaise karna hai
+Colors kahan define karne hain
+Reusable styles kaise banani hain
+Responsive design kaise likhni hai
+UI poore project me consistent kaise rakhni hai
+-
+4.1 Biggest Mistake Developers Karte Hain
+❌ Wrong
+\u003cbutton className\u003d\-
+Example
+\u003cdiv
+className\u003d\Chapter 5 - Reusable Component Architecture (Enterprise Level)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Reusable component kya hota hai
+Kab reusable banana chahiye
+Kaunse components har project me mandatory hote hain
+Component structure kaisa hona chahiye
+Props kaise design karne hain
+Component ko future-proof kaise banana hai
+-
+5.1 Reusable Component Kya Hota Hai?
+Aisa component jo ek baar banao aur poore project me use karo.
+-
+❌ Wrong
+Login Page
+\u003cbutton className\u003d\/\u003e
+-
+Columns
+const columns \u003d [
+
+{
+ title: \Chapter 6 - Layout Architecture (Dashboard Layout, Auth Layout, Sidebar, Header)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Layout kya hota hai
+Dashboard Layout kaise banate hain
+Auth Layout kaise banate hain
+Sidebar ka structure kya hona chahiye
+Header ka structure kya hona chahiye
+New page add karne par layout kaise automatically apply hoga
+-
+6.1 Layout Kya Hota Hai?
+Layout ek common structure hota hai jo multiple pages share karte hain.
+Example
+Admin Panel ke pages:
+Dashboard
+Users
+Products
+Orders
+Settings
+Sab pages me:
+Sidebar
+Header
+Content Area
+same rahega.
+To har page me Sidebar aur Header dobara nahi likhenge.
+-
+6.2 Wrong Approach
+Users Page
+\u003c\u003e
+ \u003cSidebar /\u003e
+ \u003cHeader /\u003e
+ \u003cUsers /\u003e
+\u003c/\u003e
+-
+Products Page
+\u003c\u003e
+ \u003cSidebar /\u003e
+ \u003cHeader /\u003e
+ \u003cProducts /\u003e
+\u003c/\u003e
+-
+Orders Page
+\u003c\u003e
+ \u003cSidebar /\u003e
+ \u003cHeader /\u003e
+ \u003cOrders /\u003e
+\u003c/\u003e
+Problem:
+❌ Duplicate Code
+❌ Maintenance Difficult
+-
+6.3 Correct Approach
+DashboardLayout.jsx
+\u003c\u003e
+ \u003cSidebar /\u003e
+
+ \u003cdiv\u003e
+
+   \u003cHeader /\u003e
+
+   \u003cOutlet /\u003e
+
+ \u003c/div\u003e
+\u003c/\u003e
+-
+Route
+\u003cRoute
+element\u003d{\u003cDashboardLayout /\u003e}
+\u003e
+
+\u003cRoute
+ path\u003d\gap-4
+\Chapter 7 - Routing Architecture (React Router, Protected Routes, Role-Based Routes)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Routing structure kaise banana hai
+Route constants kaise use karne hain
+Public aur Protected routes kya hote hain
+Role-based routing kaise karni hai
+Dynamic routes kaise handle karni hain
+Route management scalable kaise rakhna hai
+-
+7.1 Routing Kya Hai?
+Routing ka matlab hai:
+URL
+↓
+Component
+Example:
+/login      → Login Page
+/dashboard  → Dashboard Page
+/users      → User List
+/products   → Product List
+-
+7.2 Wrong Approach
+❌ Hardcoded Routes
+navigate(\ element\u003d{\u003cUserEdit /\u003e}
+/\u003e
+
+\u003c/Route\u003e
+-
+Benefit
+Feature grouping.
+-
+7.14 404 Route
+Har project me mandatory.
+-
+\u003cRoute
+path\u003d\Chapter 8 - API Integration Architecture (Production Level)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+API integration ka standard kya hai
+Axios setup kaise karna hai
+Service Layer kyu zaroori hai
+Token kaise manage karna hai
+Error handling kaise karni hai
+API response ko clean way me kaise handle karna hai
+-
+8.1 Biggest Mistake Developers Karte Hain
+❌ Wrong
+import axios from \ \Chapter 9 - Server State Management with TanStack Query (React Query)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+React Query kyu use karte hain
+useEffect + useState wali problem kya hai
+API caching kya hoti hai
+Refetching kya hoti hai
+Query aur Mutation me difference
+Production level API management kaise karni hai
+-
+9.1 Problem Without React Query
+Maan lo User List fetch karni hai.
+Traditional Approach
+const [users, setUsers] \u003d useState([]);
+const [loading, setLoading] \u003d useState(false);
+
+useEffect(() \u003d\u003e {
+fetchUsers();
+}, []);
+
+const fetchUsers \u003d async () \u003d\u003e {
+try {
+
+  setLoading(true);
+
+  const response \u003d await getUsers();
+
+  setUsers(response.data);
+
+} finally {
+
+  setLoading(false);
+
+}
+};
+-
+Ab har page me:
+Loading State
+
+Error State
+
+Refetch
+
+Cache
+
+Retry
+sab manually handle karna padega.
+-
+9.2 React Query Kya Karta Hai?
+Ye automatically handle karta hai:
+Caching
+
+Loading
+
+Error
+
+Refetch
+
+Background Sync
+
+Retry
+
+Pagination
+
+Infinite Scroll
+-
+9.3 Installation
+npm install @tanstack/react-query
+-
+9.4 Setup
+main.jsx
+import React from \if(isLoading){
+
+return \u003cLoader /\u003e
+
+}
+-
+Error State
+if(error){
+
+return (
+ \u003cErrorPage /\u003e
+);
+
+}
+-
+Empty State
+if(
+data?.length \u003d\u003d\u003d 0
+){
+
+return (
+
+ \u003cEmptyState /\u003e
+
+);
+
+}
+-
+9.16 Recommended Structure
+src/
+
+services/
+
+├── userService.js
+
+queries/
+
+├── userQueries.js
+
+pages/
+
+├── Users/
+
+components/
+
+├── Table
+-
+Flow
+UI
+
+↓
+
+useUsers()
+
+↓
+
+React Query
+
+↓
+
+Service
+
+↓
+
+Axios
+
+↓
+
+API
+
+↓
+
+Cache
+
+↓
+
+UI Update
+-
+9.17 Query vs Mutation
+\u0010\u0012\u001cQuery
+\u001cMutation
+\u0012\u001cGET
+\u001cPOST
+\u0012\u001cFetch
+\u001cCreate
+\u0012\u001cRead Data
+\u001cChange Data
+\u0012\u001cCached
+\u001cNot Cached
+\u0011-
+Examples
+Query
+getUsers()
+-
+Mutation
+createUser()
+
+updateUser()
+
+deleteUser()
+-
+9.18 Common Mistakes
+❌ Wrong
+useEffect(() \u003d\u003e {
+
+fetchUsers();
+
+}, []);
+for every API.
+-
+✅ Better
+useQuery()
+-
+❌ Manual Refetch
+fetchUsers();
+-
+✅
+invalidateQueries()
+-
+❌ No Cache
+-
+✅ Cache Enabled
+-
+Golden Rules
+Rule 1
+GET APIs → useQuery
+-
+Rule 2
+POST APIs → useMutation
+-
+Rule 3
+Query Keys unique rakho
+-
+Rule 4
+After Create/Update/Delete
+invalidateQueries()
+mandatory
+-
+Rule 5
+Loading state React Query se lo
+-
+Rule 6
+Error state React Query se lo
+-
+Rule 7
+Manual API state management avoid karo
+-
+Chapter 9 Summary
+GET
+↓
+useQuery
+
+POST
+↓
+useMutation
+
+Refresh
+↓
+invalidateQueries
+
+Cache
+↓
+Automatic
+
+Loading
+↓
+Automatic
+
+Error
+↓
+Automatic
+Aaj ke modern React projects me:
+Axios
++
+TanStack Query
++
+React Router
++
+Tailwind CSS
+ek bahut strong production stack maana jata hai.
+Chapter 10 - Authentication \u0026 Authorization Architecture
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Login system ka architecture
+Token management
+User session management
+Protected routes
+Role based access
+Permission based access
+Logout flow
+Production-level auth structure
+-
+10.1 Authentication vs Authorization
+Bahut developers dono ko same samajhte hain.
+-
+Authentication
+User kaun hai?
+Example:
+Email
+
+Password
+
+OTP
+Verify karna.
+-
+Example
+Harsh
+Login kar raha hai.
+System verify karega.
+-
+Result
+Authentication Success
+-
+Authorization
+User kya kar sakta hai?
+-
+Example
+Admin
+Can:
+Create User
+
+Delete User
+
+Manage Roles
+-
+Agent
+Can:
+View Orders
+Only.
+-
+10.2 Recommended Auth Flow
+Login Page
+
+↓
+
+Login API
+
+↓
+
+Receive Token
+
+↓
+
+Store Token
+
+↓
+
+Store User
+
+↓
+
+Redirect Dashboard
+
+↓
+
+Access Protected Pages
+-
+10.3 Backend Response Standard
+Login API
+{
+ \
+routes/
+
+├── ProtectedRoute.jsx
+
+├── RoleRoute.jsx
+-
+Complete Flow
+Login
+
+↓
+
+Token
+
+↓
+
+Store Session
+
+↓
+
+Auth Context
+
+↓
+
+Protected Route
+
+↓
+
+Role Check
+
+↓
+
+Permission Check
+
+↓
+
+Render UI
+-
+Common Mistakes
+❌ Store Password
+Never
+-
+❌ Hardcoded Roles
+Never
+-
+❌ No Permission System
+Large Projects me problem.
+-
+❌ No Auto Logout
+Security Issue.
+-
+❌ Direct localStorage Everywhere
+Avoid.
+-
+Golden Rules
+Rule 1
+Authentication aur Authorization alag concepts hain.
+-
+Rule 2
+Token + User only store karo.
+-
+Rule 3
+Roles constants me rakho.
+-
+Rule 4
+Permissions constants me rakho.
+-
+Rule 5
+ProtectedRoute mandatory.
+-
+Rule 6
+RoleRoute mandatory.
+-
+Rule 7
+401 par auto logout.
+-
+Rule 8
+UI bhi permission based honi chahiye.
+-
+Rule 9
+Routes bhi permission based honi chahiye.
+-
+Rule 10
+Auth Context use karo.
+-
+Chapter 10 Summary
+Authentication
+    ↓
+Who Are You
+
+Authorization
+    ↓
+What Can You Do
+
+Token
+    ↓
+Session
+
+Role
+    ↓
+Access Control
+
+Permission
+    ↓
+Feature Control
+
+Protected Route
+    ↓
+Login Required
+
+Role Route
+    ↓
+Role Required
+Chapter 11 - Forms Architecture (React Hook Form + Zod + Reusable Form Components)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Forms ka standard architecture
+React Hook Form kyu use karna hai
+Zod validation kyu use karna hai
+Reusable form fields kaise banani hain
+Create/Edit form ka same component kaise use karna hai
+Form submission flow kya hona chahiye
+-
+11.1 Biggest Mistake Developers Karte Hain
+❌ Wrong
+const [name,setName] \u003d useState(\const mutation \u003d
+useMutation({
+
+mutationFn:
+createUser
+
+});
+-
+Submit
+const onSubmit \u003d
+(data) \u003d\u003e {
+
+mutation.mutate(data);
+
+};
+-
+Success
+onSuccess:() \u003d\u003e {
+
+toast.success(
+ \Chapter 12 - State Management Architecture (With Real Examples)
+Sabse pehle ek rule yaad rakho:
+Har data Redux me nahi jayega.
+90% developers yahi galti karte hain.
+-
+12.1 State Kya Hoti Hai?
+Koi bhi data jo UI ko control karta hai.
+Example:
+const [count, setCount] \u003d useState(0);
+Yahan count state hai.
+-
+12.2 React Application Me 4 Types Ki State Hoti Hai
+Local State
+
+Global State
+
+Server State
+
+URL State
+Har state ka apna place hai.
+-
+Example Project
+Maan lo hum User Management System bana rahe hain.
+Login
+Dashboard
+Users
+Products
+Orders
+Settings
+Ab dekhte hain kaunsi state kahan jayegi.
+-
+12.3 Local State
+Sirf current component ke liye.
+-
+Example 1
+Modal Open/Close
+const [isModalOpen, setIsModalOpen] \u003d
+useState(false);
+-
+Button Click
+\u003cButton
+onClick\u003d{() \u003d\u003e
+setIsModalOpen(true)
+}
+/\u003e
+-
+Modal
+\u003cModal
+isOpen\u003d{isModalOpen}
+/\u003e
+-
+Question:
+Kya is state ko Redux me daalna chahiye?
+❌ Nahi
+Kyuki sirf isi page me use ho rahi hai.
+-
+Example 2
+Search Input
+const [search, setSearch] \u003d
+useState(\-
+Multiple modules ko chahiye.
+-
+Use Redux.
+-
+12.11 React Query Kab Use Kare?
+API Data.
+-
+Example
+Users
+
+Products
+
+Orders
+
+Dashboard Stats
+
+Notifications
+-
+Always React Query.
+-
+Quick Decision Table
+\u0010\u0012\u001cData
+\u001cWhere?
+\u0012\u001cModal Open
+\u001cuseState
+\u0012\u001cSearch Input
+\u001cuseState
+\u0012\u001cCurrent User
+\u001cRedux
+\u0012\u001cToken
+\u001cRedux
+\u0012\u001cTheme
+\u001cContext
+\u0012\u001cLanguage
+\u001cContext
+\u0012\u001cUsers List API
+\u001cReact Query
+\u0012\u001cProducts API
+\u001cReact Query
+\u0012\u001cOrders API
+\u001cReact Query
+\u0012\u001cURL Filters
+\u001cURL State
+\u0011-
+Real FounderCode Standard
+For Every New Project:
+Local UI
+useState
+-
+API Data
+TanStack Query
+-
+Auth Data
+Redux Toolkit
+-
+Theme
+Context API
+-
+Routing
+React Router
+-
+Common Mistakes
+❌ User List Redux Me
+dispatch(
+setUsers(data)
+);
+Wrong.
+Use Query.
+-
+❌ Modal Redux Me
+Wrong.
+UseState enough.
+-
+❌ Theme Redux Me
+Unnecessary.
+Context enough.
+-
+❌ Every API Redux Me
+Wrong.
+Use React Query.
+-
+Golden Rule
+Code likhne se pehle ek question pucho:
+\Chapter 13 - Custom Hooks Architecture (Production Level)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Custom Hook kya hota hai
+Kab banana chahiye
+Business Logic ko component se kaise alag karna hai
+Reusable logic kaise create karni hai
+Production level hooks ka structure kya hona chahiye
+-
+13.1 Custom Hook Kya Hai?
+Simple language me:
+Jab koi logic 2 ya usse zyada jagah use ho sakti hai, use Custom Hook me daal do.
+-
+❌ Wrong
+User Page
+const [search, setSearch] \u003d useState(\
+ logout
+
+};
+
+};
+-
+Usage
+const {
+
+user,
+
+logout
+
+}
+\u003d
+useAuth();
+-
+Header
+user.name
+-
+Logout
+logout();
+-
+13.10 useTable Hook
+Large Admin Panels me common.
+-
+Handle
+Search
+
+Filters
+
+Pagination
+
+Sorting
+-
+Hook
+const useTable \u003d () \u003d\u003e {
+
+const [search,setSearch]
+\u003d
+useState(\Chapter 14 - Error Handling, Toast System \u0026 API Response Standards
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Error handling ka standard kya hoga
+API fail hone par kya karna hai
+Toast notifications kaise use karni hain
+Success/Error messages ka structure kya hoga
+Global error handling kaise karni hai
+User ko meaningful feedback kaise dena hai
+-
+14.1 Biggest Mistake Developers Karte Hain
+❌ Wrong
+const handleSubmit \u003d async () \u003d\u003e {
+
+const response \u003d
+await createUser(data);
+
+};
+API fail ho gayi.
+User ko kuch pata hi nahi.
+-
+❌ Wrong
+catch(error){
+
+console.log(error);
+
+}
+Developer ko pata chal gaya.
+User ko nahi.
+-
+✅ Correct
+catch(error){
+
+toast.error(
+ \
+\Chapter 14 - Error Handling, Toast System \u0026 API Response Standards
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Error handling ka standard kya hoga
+API fail hone par kya karna hai
+Toast notifications kaise use karni hain
+Success/Error messages ka structure kya hoga
+Global error handling kaise karni hai
+User ko meaningful feedback kaise dena hai
+-
+14.1 Biggest Mistake Developers Karte Hain
+❌ Wrong
+const handleSubmit \u003d async () \u003d\u003e {
+
+const response \u003d
+await createUser(data);
+
+};
+API fail ho gayi.
+User ko kuch pata hi nahi.
+-
+❌ Wrong
+catch(error){
+
+console.log(error);
+
+}
+Developer ko pata chal gaya.
+User ko nahi.
+-
+✅ Correct
+catch(error){
+
+toast.error(
+ \
+\
+PERMISSIONS.USER_EDIT
+
+PERMISSIONS.USER_DELETE
+-
+15.9 Redux Structure
+store/
+
+├── store.js
+
+├── slices/
+
+│   ├── authSlice.js
+
+│   ├── themeSlice.js
+
+│   └── appSlice.js
+-
+Redux Only For
+User
+
+Token
+
+Theme
+
+Permissions
+-
+Not For
+Users List
+
+Products List
+
+Orders List
+Those go in React Query.
+-
+15.10 Routes Structure
+routes/
+
+├── AppRoutes.jsx
+
+├── ProtectedRoute.jsx
+
+├── RoleRoute.jsx
+
+├── routeConfig.js
+-
+Example
+{
+path:\Chapter 16 - Git Workflow \u0026 Code Review Standards
+Objective
+Is chapter ke baad developer ko pata hona chahiye:
+Branch kaise create karni hai
+Commit kaise likhna hai
+Pull Request kaise raise karni hai
+Code Review me kya check karna hai
+Production branch me direct code push kyu nahi karna
+-
+16.1 Branch Structure
+❌ Wrong
+main
+Sab isi me push kar rahe hain.
+-
+✅ Correct
+main
+
+development
+
+feature/user-management
+
+feature/product-module
+
+feature/order-module
+
+bugfix/login-issue
+
+hotfix/payment-bug
+-
+16.2 Branch Flow
+Feature Branch
+
+↓
+
+Development
+
+↓
+
+Testing
+
+↓
+
+Main
+-
+Example
+Developer User Module bana raha hai.
+git checkout development
+
+git checkout -b feature/user-management
+-
+Code Complete
+↓
+Push
+git push origin feature/user-management
+-
+Create Pull Request
+↓
+development
+-
+16.3 Commit Naming Standard
+❌ Wrong
+update
+
+changes
+
+done
+
+final
+
+ok
+Kuch samajh nahi aata.
+-
+✅ Correct
+feat: add user create module
+
+feat: implement login api
+
+fix: resolve sidebar navigation issue
+
+refactor: optimize dashboard cards
+
+style: update button spacing
+
+docs: update api documentation
+-
+Commit Prefixes
+feat     → New Feature
+
+fix      → Bug Fix
+
+refactor → Code Improvement
+
+style    → UI Changes
+
+docs     → Documentation
+
+test     → Testing Related
+-
+Example
+git commit -m \Chapter 17 - Performance Optimization \u0026 Production Deployment
+Objective
+Developer ko samajh aa jana chahiye:
+React performance improve kaise karni hai
+Unnecessary re-renders kaise avoid karne hain
+Lazy loading kaise karni hai
+Build optimization kaise karni hai
+Production deployment checklist kya hai
+-
+17.1 Biggest Performance Mistake
+❌ Wrong
+import Users from \Chapter 18 - Advanced Project Standards \u0026 Real-World Team Practices
+Objective
+Ye chapter un cheezon ke liye hai jo real projects me aati hain lekin junior developers aksar ignore kar dete hain.
+Is chapter ke baad developer ko samajh aa jayega:
+Feature Architecture
+
+Module Structure
+
+Code Splitting
+
+Config Management
+
+Multi Environment Setup
+
+Reusable Business Components
+
+Project Scalability
+
+Production Standards
+-
+18.1 Feature Based Architecture (Mandatory)
+Project bada hone par:
+❌ Wrong
+pages/
+services/
+hooks/
+components/
+500+ files ho jayengi.
+-
+✅ Correct
+Feature Based Structure
+src/
+
+modules/
+
+├── Users/
+│
+│   ├── pages/
+│   ├── components/
+│   ├── services/
+│   ├── hooks/
+│   ├── queries/
+│   ├── forms/
+│   └── utils/
+│
+├── Products/
+│
+├── Orders/
+│
+├── Dashboard/
+-
+Benefit:
+User module ka sara code ek hi jagah.
+-
+Example
+Users Module
+Users/
+
+├── pages/
+
+│   ├── UserList.jsx
+│   ├── UserCreate.jsx
+│   └── UserEdit.jsx
+
+├── components/
+
+│   ├── UserTable.jsx
+│   └── UserFilter.jsx
+
+├── queries/
+
+│   └── userQueries.js
+
+├── services/
+
+│   └── userService.js
+
+├── forms/
+
+│   └── UserForm.jsx
+-
+18.2 Shared Components
+Jo components poore project me use honge.
+shared/
+
+├── Button
+├── Input
+├── Modal
+├── Table
+├── Loader
+-
+Module Components
+Sirf module ke liye.
+Example:
+Users/
+
+components/
+
+├── UserTable
+├── UserFilters
+-
+Rule
+Project Wide
+↓
+shared/
+
+Module Specific
+↓
+module/components
+-
+18.3 Config Driven Development
+Hardcoded values avoid karo.
+-
+❌ Wrong
+if(user.role\u003d\u003d\u003d\
+├── shared/
+
+├── layouts/
+
+├── routes/
+
+├── store/
+
+├── services/
+
+├── hooks/
+
+├── utils/
+
+├── constants/
+
+├── assets/
+-
+18.15 Senior Developer Checklist
+Before Creating New Code:
+Question 1
+Can I reuse this?
+-
+Question 2
+Can this become a shared component?
+-
+Question 3
+Can this become a hook?
+-
+Question 4
+Can this become a utility?
+-
+Question 5
+Can this become a config?
+-
+If answer is YES:
+Don\u0027t write duplicate code.
+-
+Chapter 18 Summary
+Feature Based Modules
+       ↓
+
+Shared Components
+       ↓
+
+Config Driven Code
+       ↓
+
+Environment Based Setup
+       ↓
+
+Reusable Business Components
+       ↓
+
+Scalable Architecture
+Chapter 19 - Testing Standards (Unit Testing, Component Testing, API Mocking, E2E Testing)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Testing kyu zaroori hai
+Kya test karna hai
+Kya test nahi karna
+Unit Test kaise likhna hai
+Component Test kaise likhna hai
+API Mocking kaise karni hai
+E2E Testing kaise karni hai
+-
+19.1 Sabse Badi Galti
+Developer sochta hai:
+Code chal raha hai
+\u003d
+Perfect Code
+❌ Wrong
+Production me bugs tab aate hain jab:
+API Change
+
+Refactor
+
+New Feature
+
+New Developer
+Code break kar dete hain.
+-
+19.2 Testing Pyramid
+         E2E
+          ▲
+
+    Integration
+
+          ▲
+
+     Unit Tests
+-
+Recommended:
+70% Unit Test
+
+20% Integration Test
+
+10% E2E Test
+-
+19.3 Tools
+React Projects
+Vitest
+
+React Testing Library
+
+MSW
+
+Playwright
+-
+Install
+npm install -D vitest
+
+npm install -D @testing-library/react
+
+npm install -D @testing-library/jest-dom
+
+npm install -D msw
+
+npm install -D playwright
+-
+19.4 What To Test?
+Test
+Utilities
+
+Hooks
+
+Forms
+
+Components
+
+Permissions
+
+Business Logic
+-
+Don\u0027t Test
+React Library
+
+Tailwind Classes
+
+Third Party Packages
+-
+19.5 Unit Testing Example
+Utility Function
+-
+formatCurrency.js
+export const formatCurrency \u003d
+(amount) \u003d\u003e {
+
+return `₹${amount}`;
+
+};
+-
+formatCurrency.test.js
+import {
+describe,
+test,
+expect
+}
+from \-
+❌ Snapshot Everything
+Bad
+-
+Meaningful Tests.
+-
+19.19 FounderCode Testing Standards
+Every Feature Must Test:
+Success Case
+
+Error Case
+
+Loading Case
+
+Permission Case
+-
+Example
+Create User
+Valid Form
+
+Invalid Form
+
+API Error
+
+Permission Denied
+-
+19.20 Production Checklist
+Before Release
+✓ Build Pass
+
+✓ Unit Tests Pass
+
+✓ E2E Pass
+
+✓ APIs Working
+
+✓ Permissions Working
+
+✓ Forms Working
+
+✓ No Console Logs
+
+✓ No Warnings
+-
+Golden Rules
+Rule 1
+Test Business Logic.
+-
+Rule 2
+Test User Behavior.
+-
+Rule 3
+Mock APIs.
+-
+Rule 4
+Cover Critical Flows.
+-
+Rule 5
+No Merge Without Tests.
+-
+Rule 6
+Forms Must Be Tested.
+-
+Rule 7
+Permissions Must Be Tested.
+-
+Rule 8
+Error Cases Must Be Tested.
+-
+Rule 9
+Loading States Must Be Tested.
+-
+Rule 10
+Focus On Reliability.
+-
+Chapter 19 Summary
+Utilities
+↓
+Unit Tests
+
+Components
+↓
+Component Tests
+
+Forms
+↓
+Validation Tests
+
+APIs
+↓
+Mocked Tests
+
+User Journey
+↓
+E2E Tests
+
+Before Merge
+↓
+Tests Must Pass
+
+Chapter 20 - Enterprise React Project Blueprint (FounderCode Standard)
+Objective
+Ye poori documentation ka final chapter hai.
+Agar koi naya developer company join kare aur sirf ye chapter padhe, to usse samajh aa jana chahiye:
+Project Ka Structure
+
+Feature Kaise Banani Hai
+
+API Kaise Connect Karni Hai
+
+Form Kaise Banana Hai
+
+Routing Kaise Karni Hai
+
+Permission Kaise Lagani Hai
+
+Code Kahan Likha Jayega
+-
+20.1 Official FounderCode Tech Stack
+Har naya React Project default:
+React
+
+React Router
+
+Tailwind CSS
+
+Axios
+
+TanStack Query
+
+Redux Toolkit
+
+React Hook Form
+
+Zod
+
+React Hot Toast
+
+React Error Boundary
+-
+20.2 Enterprise Folder Structure
+src/
+
+├── app/
+│
+├── modules/
+│
+├── shared/
+│
+├── layouts/
+│
+├── routes/
+│
+├── auth/
+│
+├── store/
+│
+├── services/
+│
+├── constants/
+│
+├── hooks/
+│
+├── utils/
+│
+├── assets/
+│
+├── App.jsx
+│
+└── main.jsx
+-
+20.3 Real Project Example
+Maan lo project hai:
+FounderCode CRM
+Features:
+Dashboard
+
+Users
+
+Products
+
+Orders
+
+Roles
+
+Settings
+-
+20.4 Module Based Structure
+modules/
+
+├── Dashboard/
+
+├── Users/
+
+├── Products/
+
+├── Orders/
+
+├── Roles/
+
+├── Settings/
+-
+20.5 Complete Users Module
+Users/
+
+├── pages/
+
+│   ├── UserList.jsx
+│   ├── UserCreate.jsx
+│   ├── UserEdit.jsx
+│
+├── components/
+
+│   ├── UserTable.jsx
+│   ├── UserFilters.jsx
+│
+├── forms/
+
+│   ├── UserForm.jsx
+│   ├── schema.js
+│
+├── services/
+
+│   └── userService.js
+│
+├── queries/
+
+│   └── userQueries.js
+│
+├── hooks/
+
+│   └── useUsers.js
+│
+└── utils/
+
+   └── userHelpers.js
+-
+Rule
+Agar User feature se related code hai:
+Users Module Ke Andar
+hi rahega.
+-
+20.6 Shared Folder
+Poore project me use hone wali cheeze.
+shared/
+
+├── Button/
+
+├── Input/
+
+├── Modal/
+
+├── Table/
+
+├── Loader/
+
+├── EmptyState/
+
+├── ConfirmModal/
+
+├── StatusBadge/
+-
+Example
+\u003cButton /\u003e
+
+\u003cInput /\u003e
+
+\u003cTable /\u003e
+-
+20.7 User List Flow (Real Example)
+User Open
+/users
+↓
+Route
+↓
+Page
+\u003cUserList /\u003e
+↓
+React Query
+useUsers()
+↓
+Service
+getUsers()
+↓
+Axios
+↓
+API
+↓
+Response
+↓
+Table
+\u003cUserTable /\u003e
+-
+Complete Flow
+Route
+
+↓
+
+Page
+
+↓
+
+Query
+
+↓
+
+Service
+
+↓
+
+Axios
+
+↓
+
+API
+
+↓
+
+Response
+
+↓
+
+UI
+-
+20.8 Create User Flow
+User Click
+Add User
+↓
+/users/create
+↓
+\u003cUserForm /\u003e
+↓
+Validation
+Zod
+↓
+Mutation
+createUser()
+↓
+Success
+↓
+toast.success()
+↓
+Navigate
+/users
+-
+20.9 Edit User Flow
+/users/edit/15
+↓
+Fetch User
+↓
+Fill Form
+↓
+Update User
+↓
+Success
+↓
+Refetch User List
+-
+20.10 Authentication Flow
+Login
+↓
+loginUser()
+↓
+API
+↓
+Token
+↓
+Redux
+authSlice
+↓
+Protected Routes
+↓
+Dashboard
+-
+Auth State
+{
+user:{},
+
+token:\Suppose New Feature:
+Coupons Module
+Developer Process:
+Step 1
+Create Module
+modules/Coupons
+-
+Step 2
+Create Pages
+CouponList
+
+CouponCreate
+
+CouponEdit
+-
+Step 3
+Create Service
+couponService.js
+-
+Step 4
+Create Queries
+couponQueries.js
+-
+Step 5
+Create Form
+CouponForm.jsx
+-
+Step 6
+Add Route
+routeConfig.js
+-
+Step 7
+Add Permissions
+permissions.js
+-
+Step 8
+Testing
+Loading
+
+Error
+
+Success
+-
+Step 9
+PR
+feature/coupons-module
+-
+Step 10
+Review
+↓
+Merge
+-
+20.20 FounderCode Golden Rules
+Rule 1
+Feature Based Structure Mandatory
+-
+Rule 2
+Shared Components Mandatory
+-
+Rule 3
+Service Layer Mandatory
+-
+Rule 4
+React Query Mandatory
+-
+Rule 5
+Forms → RHF + Zod
+-
+Rule 6
+Auth → Redux
+-
+Rule 7
+Role + Permission Based Access
+-
+Rule 8
+No Hardcoded Routes
+-
+Rule 9
+No Direct API Calls In Components
+-
+Rule 10
+Code Should Be Understandable By New Developer Within 10 Minutes
+-
+Final Enterprise Flow
+User Action
+     ↓
+
+Page
+     ↓
+
+Custom Hook
+     ↓
+
+React Query
+     ↓
+
+Service
+     ↓
+
+Axios
+     ↓
+
+API
+     ↓
+
+Response
+     ↓
+
+Toast
+     ↓
+
+UI Update
+-
+Final FounderCode React SOP
+Architecture
+     ↓
+
+Feature Modules
+     ↓
+
+Shared Components
+     ↓
+
+React Query
+     ↓
+
+Redux
+     ↓
+
+RHF + Zod
+     ↓
+
+Role Permissions
+     ↓
+
+Testing
+     ↓
+
+Code Review
+     ↓
+
+Deployment
+Chapter 21 - UI/UX Standards (FounderCode Design System)
+Objective
+Har developer ko same UI standards follow karne chahiye.
+Sabse badi problem kya hoti hai?
+Developer A:
+Padding: 10px
+Button Height: 35px
+Developer B:
+Padding: 20px
+Button Height: 50px
+Developer C:
+Padding: 15px
+Button Height: 42px
+Result:
+❌ UI inconsistent
+❌ Unprofessional feel
+-
+21.1 FounderCode UI Rule
+Har page ka structure same hoga.
+Page Header
+
+↓
+
+Filters
+
+↓
+
+Content
+
+↓
+
+Pagination
+-
+Example
+Users Page
++----------------------+
+
+Users
+
+Add User
+
++----------------------+
+
+Filters
+
++----------------------+
+
+Table
+
++----------------------+
+
+Pagination
+
++----------------------+
+-
+21.2 Page Container Standard
+❌ Wrong
+p-2
+-
+❌ Wrong
+p-20
+-
+✅ Standard
+p-6
+Use everywhere.
+-
+Page Layout
+\u003cdiv className\u003d\Pagination
+
+Buttons
+     ↓
+
+Variants
+
+Forms
+     ↓
+
+Standard Layout
+
+Tables
+     ↓
+
+Reusable
+
+Spacing
+     ↓
+
+Consistent
+
+Responsive
+     ↓
+
+Mandatory
+Chapter 22 - Security Standards (FounderCode Security SOP)
+Objective
+Har developer ko security basics pata hone chahiye.
+Sabse badi galti:
+Frontend Security Ignore
+Aur phir:
+Token Leak
+
+Unauthorized Access
+
+Data Exposure
+
+API Abuse
+
+XSS Attack
+hote hain.
+-
+22.1 Security Mindset
+Rule:
+Frontend par kabhi trust mat karo.
+User browser me kuch bhi change kar sakta hai.
+-
+❌ Wrong
+if(user.role \u003d\u003d\u003d \-
+FounderCode Security Rules
+Rule 1
+Frontend is never trusted.
+-
+Rule 2
+Backend validates everything.
+-
+Rule 3
+No secrets in frontend.
+-
+Rule 4
+No passwords stored.
+-
+Rule 5
+Role + Permission both required.
+-
+Rule 6
+Input validation mandatory.
+-
+Rule 7
+File validation mandatory.
+-
+Rule 8
+401 → Auto Logout.
+-
+Rule 9
+Remove console logs.
+-
+Rule 10
+Security \u003e Convenience.
+-
+Chapter 22 Summary
+Authentication
+     ↓
+
+Authorization
+     ↓
+
+Permission Check
+     ↓
+
+Protected Route
+     ↓
+
+API Security
+     ↓
+
+Input Validation
+     ↓
+
+File Validation
+     ↓
+
+Secure Deployment
+Ye chapter ensure karta hai ki developers sirf feature build na karein, balki secure feature build karein. Production applications me security bugs feature bugs se zyada dangerous hote hain.
+Chapter 23 - API Contract Standards (Frontend + Backend Agreement)
+Objective
+Ye chapter sabse important chapters me se ek hai.
+Bahut saare projects fail nahi hote code ki wajah se.
+Fail hote hain because:
+Frontend Team
+
+↓
+
+Backend Team
+
+↓
+
+Different Expectations
+-
+Real Problem
+Backend Developer
+{
+\-
+❌ Random Status Codes
+-
+❌ No API Versioning
+-
+FounderCode Golden Rules
+Rule 1
+Every API same structure.
+-
+Rule 2
+Every error same structure.
+-
+Rule 3
+Pagination mandatory for lists.
+-
+Rule 4
+Search via query params.
+-
+Rule 5
+Filters via query params.
+-
+Rule 6
+Sorting via query params.
+-
+Rule 7
+Use proper HTTP status codes.
+-
+Rule 8
+Version APIs.
+-
+Rule 9
+Document APIs.
+-
+Rule 10
+Frontend should never guess response shape.
+-
+Chapter 23 Summary
+Request
+     ↓
+
+Validation
+     ↓
+
+API
+     ↓
+
+Standard Response
+     ↓
+
+Frontend
+     ↓
+
+Toast/UI Update
+Ye chapter frontend aur backend teams ke beech confusion almost eliminate kar deta hai aur development speed ko significantly improve karta hai.
+Chapter 24 - Reusable DataTable Architecture (Enterprise Standard)
+Objective
+Admin Panel ka sabse important component:
+Users List
+Products List
+Orders List
+Transactions List
+Employees List
+Merchants List
+Agents List
+90% admin screens table-based hoti hain.
+Agar har module apni table banayega to:
+Duplicate Code
+
+Different UI
+
+Different Features
+
+Maintenance Problem
+Isliye FounderCode Standard:
+\u003cDataTable /\u003e
+Ek hi component.
+Poore project me use hoga.
+-
+24.1 Wrong Approach
+Users Table
+\u003ctable\u003e
+
+\u003ctr\u003e
+
+ \u003ctd\u003eName\u003c/td\u003e
+
+\u003c/tr\u003e
+
+\u003c/table\u003e
+-
+Products Table
+\u003ctable\u003e
+
+\u003ctr\u003e
+
+ \u003ctd\u003eProduct Name\u003c/td\u003e
+
+\u003c/tr\u003e
+
+\u003c/table\u003e
+-
+Orders Table
+\u003ctable\u003e
+
+\u003ctr\u003e
+
+ \u003ctd\u003eOrder Id\u003c/td\u003e
+
+\u003c/tr\u003e
+
+\u003c/table\u003e
+-
+Problem
+Duplicate Code
+
+Different Design
+
+Different Features
+-
+24.2 Correct Approach
+Create One Component
+\u003cDataTable /\u003e
+-
+Use Everywhere
+\u003cDataTable
+
+columns\u003d{columns}
+
+data\u003d{users}
+
+/\u003e
+-
+\u003cDataTable
+
+columns\u003d{columns}
+
+data\u003d{products}
+
+/\u003e
+-
+\u003cDataTable
+
+columns\u003d{columns}
+
+data\u003d{orders}
+
+/\u003e
+-
+24.3 Folder Structure
+shared/
+
+├── DataTable/
+
+│   ├── index.jsx
+
+│   ├── TableHeader.jsx
+
+│   ├── TableBody.jsx
+
+│   ├── TablePagination.jsx
+
+│   ├── TableLoader.jsx
+
+│   ├── EmptyState.jsx
+
+│   └── ActionDropdown.jsx
+-
+24.4 Standard Features
+Every DataTable Must Support
+Search
+
+Filters
+
+Pagination
+
+Sorting
+
+Loading
+
+Empty State
+
+Actions
+
+Export CSV
+
+Row Selection
+
+Bulk Actions
+-
+24.5 Column Configuration
+Never Hardcode.
+-
+Wrong
+\u003ctd\u003e{user.name}\u003c/td\u003e
+
+\u003ctd\u003e{user.email}\u003c/td\u003e
+-
+Correct
+const columns \u003d [
+
+{
+
+ key:\
+onSelectRows\u003d{setSelectedRows}
+
+/\u003e
+-
+Real Users Page
+\u003cPageHeader
+
+title\u003d\Chapter 25 - Notification System Architecture (Enterprise Standard)
+Objective
+Har modern application me notifications hoti hain.
+Examples:
+Order Created
+
+Payment Success
+
+User Registered
+
+Support Ticket Raised
+
+New Message
+
+New Booking
+
+Wallet Credited
+Agar notification system standard nahi hoga to project me har jagah alag implementation ho jayegi.
+-
+25.1 Types Of Notifications
+Project me generally 4 types hoti hain:
+Toast Notifications
+
+In-App Notifications
+
+Push Notifications
+
+Real-Time Notifications
+-
+Example
+Toast
+User Created Successfully
+-
+In App
+Bell Icon
+
+↓
+
+5 New Notifications
+-
+Push
+Mobile Notification
+-
+Real Time
+New Order Received
+Without Refresh.
+-
+25.2 Notification Folder Structure
+src/
+
+notifications/
+
+├── notificationService.js
+
+├── notificationQueries.js
+
+├── notificationSlice.js
+
+├── useNotifications.js
+
+└── notificationUtils.js
+-
+25.3 Toast Notifications
+Use For:
+Create
+
+Update
+
+Delete
+
+Success
+
+Error
+-
+Example
+toast.success(
+\-
+Rule 3
+Unread Count Mandatory.
+-
+Rule 4
+Notification Categories Required.
+-
+Rule 5
+Read/Unread Support Required.
+-
+Rule 6
+Socket Logic Separate Service.
+-
+Rule 7
+Notification API Standardized.
+-
+Rule 8
+Critical Notifications Prioritized.
+-
+Rule 9
+Notification Drawer Reusable.
+-
+Rule 10
+Backend Controls Notification Visibility.
+-
+Chapter 25 Summary
+Action
+     ↓
+
+Toast
+
+System Event
+     ↓
+
+Notification
+
+Bell Icon
+     ↓
+
+Unread Count
+
+Socket Event
+     ↓
+
+Real Time Update
+
+Read Status
+     ↓
+
+Notification Management
+Ye architecture use karoge to CRM, Admin Panel, Booking System, Logistics App, Betting Platform, SaaS Product sab me ek standard notification system maintain kar paoge.
+Chapter 26 - Socket Architecture (Real-Time Systems)
+Objective
+Is chapter ke baad developer ko samajh aa jana chahiye:
+Socket Kya Hai
+
+Socket Structure
+
+Socket Service
+
+Socket Events
+
+Real Time Updates
+
+Live Orders
+
+Live Tracking
+
+Live Dashboard
+
+Socket Best Practices
+-
+26.1 Socket Kya Hota Hai?
+Normal API Flow:
+Frontend
+
+↓
+
+API Call
+
+↓
+
+Backend
+
+↓
+
+Response
+-
+Problem:
+Nayi information aayi.
+Frontend ko pata nahi.
+Refresh karna padega.
+-
+Example
+New Order
+
+New Chat
+
+New Bet
+
+New Ride Request
+-
+Solution
+Socket
+-
+Flow
+Backend
+
+↓
+
+Push Event
+
+↓
+
+Frontend
+
+↓
+
+Instant Update
+-
+26.2 API vs Socket
+API
+Request
+
+↓
+
+Response
+-
+Socket
+Always Connected
+-
+Example
+API
+GET /orders
+-
+Socket
+new_order
+-
+Backend automatically bhejega.
+-
+26.3 Real Projects Using Socket
+Chat App
+
+Logistics
+
+Live Tracking
+
+Food Delivery
+
+Ride Booking
+
+Betting Apps
+
+Gaming
+
+Admin Dashboard
+-
+26.4 Folder Structure
+src/
+
+socket/
+
+├── socketService.js
+
+├── socketEvents.js
+
+├── useSocket.js
+
+└── socketUtils.js
+-
+Never
+socket code
+direct component me.
+-
+26.5 Socket Service
+socketService.js
+import { io }
+from \-
+26.24 Real Logistics Example
+Rider
+↓
+Location Update
+↓
+Socket
+↓
+Admin Panel
+↓
+Map Updated
+↓
+Customer App
+↓
+Map Updated
+-
+No Refresh.
+-
+26.25 Real Betting Example
+Backend
+↓
+Round Started
+↓
+Socket Event
+↓
+Frontend
+↓
+Timer Update
+-
+Event
+round_started
+-
+Payload
+{
+\Chapter 27 - Deployment \u0026 DevOps (FounderCode Production SOP)
+Objective
+Har developer ko sirf code likhna hi nahi aana chahiye.
+Usse ye bhi pata hona chahiye:
+Code
+
+↓
+
+Build
+
+↓
+
+Testing
+
+↓
+
+Deployment
+
+↓
+
+Production
+
+↓
+
+Monitoring
+Production me application kaise jati hai.
+-
+27.1 Development Lifecycle
+FounderCode Standard Flow:
+Developer
+
+↓
+
+Feature Branch
+
+↓
+
+Pull Request
+
+↓
+
+Code Review
+
+↓
+
+Development Server
+
+↓
+
+QA Testing
+
+↓
+
+Production Deployment
+-
+27.2 Environments
+Har project me minimum:
+Development
+
+Staging
+
+Production
+-
+Development
+Developers Testing
+Example:
+VITE_API_URL\u003dhttps://dev-api.com
+-
+Staging
+Client Testing
+
+QA Testing
+Example:
+VITE_API_URL\u003dhttps://staging-api.com
+-
+Production
+Live Users
+Example:
+VITE_API_URL\u003dhttps://api.com
+-
+27.3 Environment Files
+.env.development
+
+.env.staging
+
+.env.production
+-
+Never commit:
+.env
+-
+27.4 Build Process
+Before deployment:
+npm run build
+-
+Output:
+dist/
+-
+Contains:
+HTML
+
+CSS
+
+JS
+
+Assets
+-
+27.5 Build Validation Checklist
+Build pass hona chahiye.
+-
+Check:
+No Errors
+
+No Warnings
+
+No Console Logs
+
+No Broken Imports
+-
+27.6 Deployment Options
+Most Common:
+Vercel
+
+AWS
+
+VPS
+
+Docker
+
+Nginx
+-
+27.7 Vercel Deployment
+Best For:
+Admin Panels
+
+Dashboards
+
+SaaS Products
+
+CRM
+-
+Flow:
+GitHub
+
+↓
+
+Vercel
+
+↓
+
+Auto Deploy
+-
+Benefits:
+Free SSL
+
+Auto Deployment
+
+Rollback
+
+Preview URLs
+-
+27.8 VPS Deployment
+Common For:
+Custom Hosting
+
+Client Servers
+
+Private Projects
+-
+Server:
+Ubuntu
+Recommended.
+-
+27.9 Nginx Setup
+React Build
+↓
+dist/
+↓
+Nginx
+↓
+Serve Website
+-
+Example
+/var/www/project
+-
+Nginx serves static files.
+-
+27.10 SPA Routing Issue
+React Router Problem:
+-
+User opens:
+/users
+-
+Nginx
+↓
+404
+-
+Fix
+try_files $uri /index.html;
+-
+Mandatory.
+-
+27.11 SSL Certificate
+Every Production Website:
+HTTPS
+Mandatory.
+-
+Use:
+Let\u0027s Encrypt
+-
+Never Deploy:
+HTTP
+Production.
+-
+27.12 Docker Basics
+Purpose:
+Same Environment
+
+Everywhere
+-
+Developer
+↓
+QA
+↓
+Production
+Same Setup.
+-
+Dockerfile Example
+FROM node:20
+
+WORKDIR /app
+
+COPY . .
+
+RUN npm install
+
+RUN npm run build
+-
+27.13 CI/CD
+Meaning:
+Continuous Integration
+
+Continuous Deployment
+-
+Flow:
+Push Code
+
+↓
+
+Build
+
+↓
+
+Test
+
+↓
+
+Deploy
+Automatic.
+-
+27.14 GitHub Actions
+Most Recommended.
+-
+Flow:
+Git Push
+
+↓
+
+GitHub Action
+
+↓
+
+Build
+
+↓
+
+Deploy
+-
+No Manual Work.
+-
+27.15 CI/CD Pipeline
+Code Push
+
+↓
+
+Install Dependencies
+
+↓
+
+Run Tests
+
+↓
+
+Run Build
+
+↓
+
+Deploy
+-
+If Build Fails
+↓
+Stop Deployment.
+-
+27.16 Pre Deployment Checklist
+Before Production:
+✓ Build Success
+
+✓ Tests Pass
+
+✓ APIs Working
+
+✓ Permissions Working
+
+✓ Responsive
+
+✓ Environment Variables
+
+✓ Error Handling
+
+✓ Loading States
+
+✓ Empty States
+-
+27.17 Monitoring
+Deployment ke baad bhi kaam khatam nahi hota.
+-
+Monitor:
+Errors
+
+Performance
+
+API Failures
+
+User Issues
+-
+27.18 Logging
+Frontend Logs:
+Sentry
+Recommended.
+-
+Track:
+JS Errors
+
+Crashes
+
+Unhandled Exceptions
+-
+27.19 Analytics
+Recommended:
+Google Analytics
+
+PostHog
+-
+Track:
+Users
+
+Pages
+
+Clicks
+
+Funnels
+-
+27.20 Rollback Strategy
+Kabhi bhi deployment break ho sakti hai.
+-
+Need:
+Rollback
+-
+Flow:
+Current Version
+
+↓
+
+Deploy
+
+↓
+
+Issue Found
+
+↓
+
+Rollback
+-
+Previous Stable Version.
+-
+27.21 Production Security
+Check:
+HTTPS
+
+Environment Variables
+
+No Secrets
+
+No Debug Logs
+
+No Test APIs
+-
+27.22 FounderCode Deployment Flow
+Developer
+
+↓
+
+Feature Branch
+
+↓
+
+PR
+
+↓
+
+Review
+
+↓
+
+Development
+
+↓
+
+QA
+
+↓
+
+Staging
+
+↓
+
+Production
+-
+27.23 Release Process
+Example:
+v1.0.0
+
+v1.1.0
+
+v1.2.0
+-
+Use Semantic Versioning.
+-
+Patch:
+1.0.1
+Bug Fix.
+-
+Minor:
+1.1.0
+Feature.
+-
+Major:
+2.0.0
+Breaking Change.
+-
+27.24 Common Deployment Mistakes
+❌ Deploy Without Build
+-
+❌ No Environment Variables
+-
+❌ No SSL
+-
+❌ No Backup
+-
+❌ No Rollback Plan
+-
+❌ Testing On Production
+-
+27.25 FounderCode DevOps Rules
+Rule 1
+Never Deploy Directly From Local.
+-
+Rule 2
+Build Must Pass.
+-
+Rule 3
+Tests Must Pass.
+-
+Rule 4
+Use Separate Environments.
+-
+Rule 5
+HTTPS Mandatory.
+-
+Rule 6
+Environment Variables Mandatory.
+-
+Rule 7
+CI/CD Preferred.
+-
+Rule 8
+Monitoring Mandatory.
+-
+Rule 9
+Rollback Plan Required.
+-
+Rule 10
+Production Is Never A Testing Environment.
+-
+Chapter 27 Summary
+Code
+     ↓
+
+Build
+     ↓
+
+Test
+     ↓
+
+Staging
+     ↓
+
+Production
+     ↓
+
+Monitoring
+     ↓
+
+Maintenance
+FounderCode Recommended Stack
+GitHub
+
+↓
+
+GitHub Actions
+
+↓
+
+Vercel / VPS
+
+↓
+
+Nginx
+
+↓
+
+HTTPS
+
+↓
+
+Sentry
+
+↓
+
+Google Analytics
+Ye chapter ensure karta hai ki project sirf develop na ho, balki professionally deploy, monitor aur maintain bhi kiya ja sake.
+Chapter 28 - Documentation Standards (FounderCode Documentation SOP)
+Objective
+Code likhna important hai.
+Lekin production companies me equally important hai:
+Documentation
+Agar developer company chhod de aur documentation na ho:
+Project Samajhna Difficult
+
+Onboarding Slow
+
+Maintenance Cost High
+
+Knowledge Loss
+-
+28.1 Documentation Philosophy
+FounderCode Rule:
+Agar feature build kiya hai to uski documentation bhi honi chahiye.
+-
+❌ Wrong
+Code Exists
+
+Documentation Missing
+-
+✅ Correct
+Code Exists
+
+README Exists
+
+API Docs Exists
+
+Flow Exists
+-
+28.2 Documentation Structure
+Every Project:
+docs/
+
+├── ProjectOverview.md
+
+├── SetupGuide.md
+
+├── Architecture.md
+
+├── API.md
+
+├── Permissions.md
+
+├── Deployment.md
+
+├── Modules/
+
+│   ├── Users.md
+│   ├── Orders.md
+│   └── Products.md
+
+└── Flows/
+-
+28.3 Project Overview
+Must Explain:
+Project Name
+
+Purpose
+
+Tech Stack
+
+Major Modules
+
+Environment URLs
+-
+Example
+# FounderCode CRM
+
+Purpose:
+Merchant Management System
+
+Stack:
+React
+Tailwind
+React Query
+Redux Toolkit
+-
+28.4 Setup Guide
+Every New Developer Needs This.
+-
+Should Contain:
+Clone Project
+
+Install Packages
+
+Environment Setup
+
+Run Project
+
+Build Project
+-
+Example
+git clone project-url
+npm install
+npm run dev
+-
+28.5 Architecture Document
+Must Explain:
+Folder Structure
+
+Routing
+
+Auth
+
+API Flow
+
+State Management
+-
+Example
+Page
+
+↓
+
+Query
+
+↓
+
+Service
+
+↓
+
+API
+
+↓
+
+Response
+
+↓
+
+UI
+-
+28.6 README Standard
+Every Repository Must Have.
+-
+README Should Include:
+Project Name
+
+Purpose
+
+Setup
+
+Environment Variables
+
+Build Commands
+
+Deployment
+-
+Example
+# FounderCode CRM
+
+npm install
+
+npm run dev
+-
+28.7 Module Documentation
+Every Major Module.
+-
+Example:
+Users Module
+
+Orders Module
+
+Products Module
+
+Wallet Module
+-
+Each Module Should Explain:
+Purpose
+
+Pages
+
+Permissions
+
+APIs
+
+Flow
+-
+Example
+Users Module
+User List
+
+Create User
+
+Edit User
+
+Delete User
+-
+28.8 API Documentation
+Every API Documented.
+-
+Example
+GET /users
+-
+Permission
+user_view
+-
+Response
+{
+\-
+Rule 8
+Keep Docs Updated.
+-
+Rule 9
+Documentation Is Part Of Development.
+-
+Rule 10
+If It Is Not Documented, It Does Not Exist.
+-
+Chapter 28 Summary
+Project Docs
+     ↓
+
+README
+     ↓
+
+Architecture
+     ↓
+
+Module Docs
+     ↓
+
+API Docs
+     ↓
+
+Permission Matrix
+     ↓
+
+Deployment Docs
+     ↓
+
+Project Wiki
+Ye chapter ensure karta hai ki project kisi ek developer par dependent na rahe aur koi bhi naya developer ya team member project ko quickly samajh kar productive ho sake.
+Next Chapter
+Chapter 29 - Team Coding Rules \u0026 Engineering Standards
+Isme company-wide coding discipline define hoga:
+PR Rules
+
+Branch Rules
+
+Code Review Rules
+
+Naming Rules
+
+Merge Rules
+
+Developer Responsibilities
+Ye chapter team ko ek hi engineering standard par kaam karne me help karega.
+
+
+Chapter 29 - Team Coding Rules \u0026 Engineering Standards (FounderCode SOP)
+Objective
+Chahe project kitna bhi accha architecture follow kare:
+React
+
+Tailwind
+
+Redux
+
+React Query
+
+Testing
+Agar team discipline follow nahi karegi to project messy ho jayega.
+Ye chapter define karta hai:
+Developer Rules
+
+PR Rules
+
+Review Rules
+
+Merge Rules
+
+Definition Of Done
+
+Team Standards
+-
+29.1 Engineering Philosophy
+FounderCode Rule:
+Code sirf chalna nahi chahiye, maintainable bhi hona chahiye.
+-
+Wrong Mindset
+Feature Complete
+
+↓
+
+Push
+-
+Correct Mindset
+Feature
+
+↓
+
+Testing
+
+↓
+
+Documentation
+
+↓
+
+Review
+
+↓
+
+Merge
+-
+29.2 Developer Responsibilities
+Har developer responsible hai:
+Code Quality
+
+Testing
+
+Documentation
+
+Performance
+
+Security
+-
+Not Responsible:
+Sirf Feature Banana
+-
+29.3 Branch Naming Standard
+Feature
+feature/user-management
+
+feature/order-module
+
+feature/dashboard
+-
+Bug Fix
+bugfix/login-issue
+
+bugfix/sidebar-crash
+-
+Hotfix
+hotfix/payment-error
+-
+Refactor
+refactor/user-query
+-
+29.4 Commit Message Standard
+Wrong
+done
+
+final
+
+update
+
+changes
+-
+Correct
+feat: add user management module
+
+fix: resolve login validation issue
+
+refactor: optimize dashboard queries
+
+style: improve form spacing
+
+docs: update api documentation
+-
+Commit Prefixes
+feat
+
+fix
+
+refactor
+
+style
+
+docs
+
+test
+
+chore
+-
+29.5 Pull Request Standard
+PR Title
+User Management Module
+-
+PR Description
+Features:
+
+✓ User List
+
+✓ Create User
+
+✓ Edit User
+
+✓ Delete User
+
+✓ Permissions
+-
+29.6 Pull Request Checklist
+Before PR:
+✓ Build Pass
+
+✓ Tests Pass
+
+✓ Responsive
+
+✓ No Console Logs
+
+✓ Loading State
+
+✓ Error State
+
+✓ Empty State
+
+✓ Permission Check
+
+✓ Documentation Updated
+-
+29.7 Code Review Philosophy
+Goal:
+Improve Code
+
+Not Criticize Developer
+-
+Review:
+Code
+
+Not Person
+-
+Wrong
+This code is bad.
+-
+Correct
+This logic can be extracted
+into a reusable hook.
+-
+29.8 Code Review Checklist
+Architecture
+Correct Folder?
+-
+Naming
+Correct Naming?
+-
+API
+Service Layer Used?
+-
+Queries
+React Query Used?
+-
+Forms
+RHF + Zod?
+-
+Error Handling
+Handled?
+-
+Security
+Permission Check?
+-
+Performance
+Unnecessary Renders?
+-
+29.9 PR Approval Rules
+Small PR
+1 Approval
+-
+Critical Module
+2 Approvals
+Recommended.
+-
+29.10 Merge Rules
+Never Merge If:
+Build Failing
+
+Tests Failing
+
+Review Pending
+
+Conflicts Pending
+-
+Only Merge If:
+Build Pass
+
+Review Approved
+
+QA Approved
+-
+29.11 Definition Of Done (DOD)
+Feature Complete Means:
+NOT
+Code Written
+-
+YES
+Code Complete
+
+Testing Complete
+
+Review Complete
+
+Documentation Complete
+
+Merged
+-
+DOD Checklist
+✓ Feature Works
+
+✓ API Works
+
+✓ Loading State
+
+✓ Error State
+
+✓ Empty State
+
+✓ Responsive
+
+✓ Tested
+
+✓ Reviewed
+
+✓ Documented
+-
+29.12 Bug Fix Workflow
+Bug Found
+↓
+Create Ticket
+↓
+Create Branch
+↓
+Fix
+↓
+Test
+↓
+PR
+↓
+Review
+↓
+Merge
+-
+Never
+Direct Production Change
+-
+29.13 Emergency Hotfix Flow
+Production Issue
+↓
+hotfix branch
+↓
+Fix
+↓
+Review
+↓
+Deploy
+↓
+Merge Back To Development
+-
+29.14 Team Communication Rules
+When Asking Help:
+Include:
+Problem
+
+Screenshot
+
+Error
+
+Steps To Reproduce
+-
+Wrong
+Code Not Working
+-
+Correct
+Login API
+
+500 Error
+
+Steps:
+
+1 Click Login
+
+2 Submit Form
+
+3 API Fails
+-
+29.15 Ticket Standards
+Every Task Must Include:
+Objective
+
+Requirements
+
+Acceptance Criteria
+
+API Details
+
+Permissions
+-
+Example
+Create User Module
+Acceptance Criteria:
+Can Create User
+
+Validation Works
+
+Permissions Applied
+-
+29.16 Ownership Rules
+Every Module Should Have Owner.
+-
+Example
+Users Module
+↓
+Developer A
+
+Orders Module
+↓
+Developer B
+
+Payments Module
+↓
+Developer C
+-
+Ownership:
+Code
+
+Bugs
+
+Documentation
+-
+29.17 Technical Debt Rules
+If you see:
+Duplicate Code
+
+Bad Naming
+
+Unused Code
+
+Dead Code
+Create Refactor Task.
+-
+Don\u0027t ignore.
+-
+29.18 Knowledge Sharing
+Monthly:
+Code Review Session
+
+Architecture Session
+
+Tech Session
+-
+Team Growth.
+-
+29.19 Engineering Metrics
+Track:
+PR Count
+
+Review Time
+
+Bug Count
+
+Deployment Frequency
+
+Lead Time
+-
+Useful For:
+Team Improvement
+-
+29.20 FounderCode Engineering Rules
+Rule 1
+No Direct Push To Main.
+-
+Rule 2
+PR Mandatory.
+-
+Rule 3
+Review Mandatory.
+-
+Rule 4
+Build Must Pass.
+-
+Rule 5
+Tests Must Pass.
+-
+Rule 6
+Documentation Must Be Updated.
+-
+Rule 7
+No Console Logs.
+-
+Rule 8
+No Duplicate Code.
+-
+Rule 9
+Definition Of Done Must Be Followed.
+-
+Rule 10
+Code Ownership Mandatory.
+-
+FounderCode Development Lifecycle
+Task
+
+↓
+
+Branch
+
+↓
+
+Development
+
+↓
+
+Testing
+
+↓
+
+PR
+
+↓
+
+Review
+
+↓
+
+QA
+
+↓
+
+Merge
+
+↓
+
+Deployment
+-
+Team Quality Checklist
+Before Any Merge:
+✓ Architecture Followed
+
+✓ Standards Followed
+
+✓ Responsive
+
+✓ Secure
+
+✓ Tested
+
+✓ Reviewed
+
+✓ Documented
+-
+Chapter 29 Summary
+Task
+↓
+
+Development
+↓
+
+Testing
+↓
+
+Documentation
+↓
+
+Pull Request
+↓
+
+Code Review
+↓
+
+QA
+↓
+
+Merge
+↓
+
+Deployment
+Ye chapter ensure karta hai ki 2 developers ho ya 20 developers, sab ek hi engineering process follow karein aur project maintainable, scalable aur predictable rahe.
+Chapter 30 - FounderCode Enterprise Starter Template
+Objective
+Har naya project start karte waqt same setup dobara nahi banana.
+Developer ko:
+Routing
+
+Authentication
+
+Redux
+
+React Query
+
+Forms
+
+Permissions
+
+DataTable
+
+Notifications
+
+Socket
+baar-baar setup nahi karna chahiye.
+-
+FounderCode Rule
+New Project Flow:
+Clone Template
+
+↓
+
+Update Project Name
+
+↓
+
+Configure APIs
+
+↓
+
+Start Development
+-
+30.1 Official FounderCode Stack
+React 19
+
+React Router
+
+Tailwind CSS
+
+Axios
+
+TanStack Query
+
+Redux Toolkit
+
+React Hook Form
+
+Zod
+
+React Hot Toast
+
+Socket.io
+
+React Error Boundary
+-
+30.2 Enterprise Folder Structure
+src/
+
+├── app/
+
+├── modules/
+
+├── shared/
+
+├── layouts/
+
+├── routes/
+
+├── auth/
+
+├── services/
+
+├── store/
+
+├── hooks/
+
+├── constants/
+
+├── utils/
+
+├── notifications/
+
+├── socket/
+
+├── assets/
+
+├── App.jsx
+
+└── main.jsx
+-
+30.3 App Folder
+Application bootstrap.
+app/
+
+├── providers/
+
+├── queryClient.js
+
+├── theme.js
+
+└── config.js
+-
+Contains:
+React Query Provider
+
+Redux Provider
+
+Theme Provider
+-
+30.4 Shared Components
+Reusable Components.
+shared/
+
+├── Button
+
+├── Input
+
+├── Select
+
+├── Modal
+
+├── Loader
+
+├── EmptyState
+
+├── ConfirmModal
+
+├── DataTable
+
+├── StatusBadge
+
+├── Pagination
+-
+Rule
+Project-wide component
+↓
+shared
+-
+30.5 Module Structure
+Example:
+Users Module
+modules/
+
+Users/
+
+├── pages/
+
+├── components/
+
+├── forms/
+
+├── hooks/
+
+├── services/
+
+├── queries/
+
+├── utils/
+-
+All User Code
+↓
+Users Module.
+-
+30.6 Routing Setup
+routes/
+
+├── routeConfig.js
+
+├── AppRoutes.jsx
+
+├── ProtectedRoute.jsx
+
+├── RoleRoute.jsx
+-
+Example
+{
+path:\-
+Rule 7
+DataTable Reusable.
+-
+Rule 8
+Socket Centralized.
+-
+Rule 9
+Documentation Required.
+-
+Rule 10
+New Developer Should Understand Project Within 10 Minutes.
+-
+Final Enterprise Blueprint
+Architecture
+       ↓
+
+Modules
+       ↓
+
+Components
+       ↓
+
+Hooks
+       ↓
+
+React Query
+       ↓
+
+Services
+       ↓
+
+Axios
+       ↓
+
+API

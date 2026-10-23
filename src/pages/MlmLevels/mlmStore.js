@@ -230,3 +230,48 @@ export function saveMlmLevels(list) {
   }
 }
 
+export function normalizeMlmLevel(raw, index = 0) {
+  const id = Number(raw.id ?? raw.level ?? raw.level_id ?? index + 1)
+  const name = raw.name || raw.level_name || `Level ${id}`
+  const title = raw.title || `Cascading Depth Tier ${id}`
+  const rateVal = Number(raw.commission_rate ?? raw.rate ?? raw.commission ?? 0)
+  const rateDisplay = raw.rate_display || (rateVal > 0 ? (rateVal < 1 ? `${rateVal.toFixed(4)}%` : `${rateVal}%`) : `${rateVal}%`)
+  const members = Number(raw.members_count ?? raw.members ?? raw.team_size ?? 0)
+  const turnover = Number(raw.turnover_volume ?? raw.turnover ?? raw.volume ?? 0)
+  const commission = Number(raw.commission_paid ?? raw.commission ?? raw.total_commission ?? 0)
+  const status = raw.status === 'Active' || raw.status === 1 || raw.status === true || raw.status === 'active' ? 'Active' : 'Paused'
+  const minDownlines = Number(raw.min_active_downlines ?? raw.downlines ?? raw.min_downlines ?? id)
+
+  const colors = [
+    'from-blue-600 to-indigo-700',
+    'from-emerald-500 to-teal-700',
+    'from-purple-500 to-violet-700',
+    'from-amber-500 to-orange-700',
+    'from-rose-500 to-pink-700',
+    'from-cyan-500 to-blue-700',
+    'from-fuchsia-500 to-pink-700',
+    'from-indigo-500 to-purple-800',
+    'from-teal-500 to-emerald-800',
+    'from-slate-700 to-slate-900',
+  ]
+  const color = raw.color || colors[(id - 1) % colors.length]
+
+  return {
+    id,
+    name,
+    title,
+    count: id,
+    commission_rate: rateVal,
+    rate_display: rateDisplay,
+    depth_share: raw.depth_share || `${rateDisplay} Base`,
+    min_active_downlines: minDownlines,
+    members_count: members,
+    turnover_volume: turnover,
+    commission_paid: commission,
+    status,
+    color,
+    badge_color: status === 'Active' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200',
+    raw,
+  }
+}
+

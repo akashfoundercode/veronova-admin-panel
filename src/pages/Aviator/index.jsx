@@ -3,10 +3,14 @@ import {
   Plane, Crown, Users, BarChart3, User, Gamepad2, FileText,
   Sliders, Zap, ShieldAlert, RefreshCw, Maximize2, Smartphone,
   CheckCircle2, AlertTriangle, ArrowUpRight, FileSpreadsheet,
-  Settings, Play, Pause, Flame
+  Settings, Play, Pause, Flame, Radio
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, money, useToast } from '@/components/ui'
+import { aviatorSocket } from '@/games/skyrush/src/services/aviatorSocket'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
+import { SOCKET_CONFIG } from '@/constants/socketConfig'
 
 const INITIAL_MULTIPLIERS = [2.48, 1.15, 1.21, 29.58, 1.65, 2.0, 1.27, 1.11, 1.13, 1.18, 1.52, 1.26, 1.14, 3.42, 1.08]
 
@@ -42,7 +46,7 @@ export default function Aviator() {
   const [tab, setTab] = useState('drops')
   const [multipliers, setMultipliers] = useState(INITIAL_MULTIPLIERS)
   const [drops, setDrops] = useState(SEED_DROPS)
-  const [bets] = useState(SEED_BETS)
+  const [bets, setBets] = useState(SEED_BETS)
   const [periodNo, setPeriodNo] = useState(1134892)
   const [usersPlaying, setUsersPlaying] = useState(48)
   const [targetCrash, setTargetCrash] = useState('2.50')
@@ -51,22 +55,200 @@ export default function Aviator() {
   const [gamePaused, setGamePaused] = useState(false)
   const [isInteractive, setIsInteractive] = useState(false)
   const [iframeKey, setIframeKey] = useState(1)
+  const [socketConnected, setSocketConnected] = useState(aviatorSocket.isConnected)
+  const [liveSocketPacket, setLiveSocketPacket] = useState(null)
+  const [telemetryData, setTelemetryData] = useState(null)
+  const [iframeGameState, setIframeGameState] = useState('COUNTDOWN')
+  const [isCrashing, setIsCrashing] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const iframeRef = useRef(null)
   const containerRef = useRef(null)
+  const liveFlightMultiplierRef = useRef(1.0)
 
   const [toast, node] = useToast()
 
-  // Periodic simulated state to keep live telemetry vibrant
+  // 1. Fetch live telemetry (/admin/aviator/telemetry) per round
+  const fetchTelemetry = async (roundNum) => {
+    try {
+      const activeRound = roundNum || periodNo
+      const queryStr = activeRound ? `?period_no=${activeRound}` : ''
+      const endpoints = [
+        API_ENDPOINTS.aviatorTelemetry ? `${API_ENDPOINTS.aviatorTelemetry}${queryStr}` : null,
+        API_ENDPOINTS.AVIATOR_TELEMETRY_PROXY ? `${API_ENDPOINTS.AVIATOR_TELEMETRY_PROXY}${queryStr}` : null,
+        `/admin/aviator/telemetry${queryStr}`,
+        `/api/admin/aviator/telemetry${queryStr}`,
+        `/api/admin/aviator${queryStr}`,
+      ]
+      let json = null
+      for (const ep of endpoints) {
+        if (!ep) continue
+        try {
+          json = await apiRequest(ep, { method: 'GET' })
+          if (json) break
+        } catch {}
+      }
+      const data = json?.data || json
+      if (data && typeof data === 'object') {
+        setTelemetryData(data)
+        if (data.period_no || data.period) setPeriodNo(data.period_no || data.period)
+        if (data.players_online || data.playersOnline) setUsersPlaying(data.players_online || data.playersOnline)
+      }
+    } catch (err) {
+      console.warn('[Aviator] Could not load telemetry:', err)
+    }
+  }
+
+  // 2. Fetch drop history (/admin/aviator/drops)
+  const fetchDrops = async () => {
+    try {
+      const endpoints = [
+        API_ENDPOINTS.aviatorDrops,
+        API_ENDPOINTS.AVIATOR_DROPS_PROXY,
+        '/admin/aviator/drops',
+        '/api/admin/aviator/drops',
+      ]
+      let json = null
+      for (const ep of endpoints) {
+        if (!ep) continue
+        try {
+          json = await apiRequest(ep, { method: 'GET' })
+          if (json) break
+        } catch {}
+      }
+      const rawList = Array.isArray(json?.data)
+        ? json.data
+        : Array.isArray(json?.drops)
+        ? json.drops
+        : Array.isArray(json)
+        ? json
+        : null
+
+      if (rawList && rawList.length > 0) {
+        const normalized = rawList.map((item, idx) => {
+          const mult = Number(item.crash || item.crash_point || item.multiplier || item.n || 1.0)
+          return {
+            id: item.id || idx + 1,
+            round: item.round || item.period_no || item.period || 1028000 + idx,
+            crash: typeof item.crash === 'string' && item.crash.includes('x') ? item.crash : `${mult.toFixed(2)}x`,
+            n: mult,
+            pool: Number(item.pool || item.total_bet || item.total_pool || 45000),
+            hash: item.hash || item.sha256 || 'e3b0c44298fc1c149afbf4c8996fb924',
+            at: item.at || item.created_at || item.time || 'Just now',
+          }
+        })
+        setDrops(normalized)
+        const mults = normalized.slice(0, 15).map((d) => d.n).filter((n) => !isNaN(n) && n > 0)
+        if (mults.length > 0) setMultipliers(mults)
+      }
+    } catch (err) {
+      console.warn('[Aviator] Could not load drops:', err)
+    }
+  }
+
+  // 3. Fetch user bets history (/admin/aviator)
+  const fetchBets = async () => {
+    try {
+      const endpoints = [
+        API_ENDPOINTS.aviator,
+        API_ENDPOINTS.AVIATOR_BETS_PROXY,
+        '/admin/aviator',
+        '/api/admin/aviator',
+      ]
+      let json = null
+      for (const ep of endpoints) {
+        if (!ep) continue
+        try {
+          json = await apiRequest(ep, { method: 'GET' })
+          if (json) break
+        } catch {}
+      }
+      const rawList = Array.isArray(json?.data)
+        ? json.data
+        : Array.isArray(json?.bets)
+        ? json.bets
+        : Array.isArray(json)
+        ? json
+        : null
+
+      if (rawList && rawList.length > 0) {
+        const normalized = rawList.map((item, idx) => {
+          const amount = Number(item.amount || item.bet_amount || item.bet || 100)
+          const payout = Number(item.payout || item.win_amount || item.win || 0)
+          const cashVal = item.cash || item.cashed_out || item.cashed_at || (payout > 0 ? `${(payout / (amount || 1)).toFixed(2)}x` : '—')
+          const status = item.status || (payout > 0 ? 'Won' : 'Crashed')
+          return {
+            id: item.id || idx + 1,
+            user: item.user || item.username || item.player_name || `Player_${item.id || idx + 1}`,
+            user_id: item.user_id || item.uid || item.player_id || `VN_${10000 + idx}`,
+            amount,
+            autoCash: item.autoCash || item.auto_cashout || item.target || '—',
+            cash: typeof cashVal === 'number' ? `${cashVal.toFixed(2)}x` : cashVal,
+            payout,
+            status: String(status).toLowerCase() === 'won' || String(status).toLowerCase() === 'win' ? 'Won' : 'Crashed',
+          }
+        })
+        setBets(normalized)
+      }
+    } catch (err) {
+      console.warn('[Aviator] Could not load bets:', err)
+    }
+  }
+
+  const loadAllBackendData = async () => {
+    setIsSyncing(true)
+    await Promise.allSettled([fetchTelemetry(), fetchDrops(), fetchBets()])
+    setIsSyncing(false)
+  }
+
+  // Periodic automatic sync with backend endpoints
   useEffect(() => {
+    let active = true
+    loadAllBackendData()
     const timer = setInterval(() => {
-      setUsersPlaying((prev) => Math.max(30, Math.min(85, prev + Math.floor(Math.random() * 5) - 2)))
-    }, 4000)
-    return () => clearInterval(timer)
+      if (active) {
+        fetchTelemetry()
+        fetchDrops()
+        fetchBets()
+      }
+    }, 10000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
   }, [])
 
-  // Listen for scroll events from game iframe so cursor over game still scrolls the page smoothly
+  // Subscribe to live socket service (https://fcsocket.site | demobdg_aviator) & iframe bridge
   useEffect(() => {
-    const handleScrollMsg = (e) => {
+    const handlePacket = (packet) => {
+      if (!packet) return
+      setLiveSocketPacket(packet)
+      setSocketConnected(true)
+      if (packet.period) {
+        setPeriodNo((prev) => {
+          if (prev !== packet.period) {
+            fetchTelemetry(packet.period)
+          }
+          return packet.period
+        })
+      }
+      if (packet.multiplier && packet.multiplier >= 1.0) {
+        liveFlightMultiplierRef.current = Number(packet.multiplier)
+      }
+      if (packet.crashPoint && packet.state === 'CRASHED') {
+        const crashVal = Number(packet.crashPoint).toFixed(2)
+        setMultipliers((prev) => [parseFloat(crashVal), ...prev.slice(0, 14)])
+      }
+    }
+
+    const unsubscribe = aviatorSocket.subscribe((event) => {
+      if (event.type === 'CONNECTION_CHANGE') {
+        setSocketConnected(Boolean(event.connected))
+      } else if (event.type === 'SOCKET_PACKET' && event.packet) {
+        handlePacket(event.packet)
+      }
+    })
+
+    const handleWindowMsg = (e) => {
       if (e.data && e.data.type === 'PARENT_SCROLL') {
         const delta = Number(e.data.deltaY) || 0
         if (!delta) return
@@ -75,10 +257,19 @@ export default function Aviator() {
         if (scrollContainer) {
           scrollContainer.scrollTop += delta
         }
+      } else if (e.data && e.data.type === 'AVIATOR_SOCKET_PACKET' && e.data.packet) {
+        handlePacket(e.data.packet)
+      } else if (e.data && e.data.type === 'GAME_STATE_UPDATE') {
+        if (e.data.gameState) setIframeGameState(e.data.gameState)
+        if (e.data.multiplier) liveFlightMultiplierRef.current = Number(e.data.multiplier)
       }
     }
-    window.addEventListener('message', handleScrollMsg)
-    return () => window.removeEventListener('message', handleScrollMsg)
+
+    window.addEventListener('message', handleWindowMsg)
+    return () => {
+      unsubscribe()
+      window.removeEventListener('message', handleWindowMsg)
+    }
   }, [])
 
   const handleApplyNextCrash = (val) => {
@@ -89,17 +280,43 @@ export default function Aviator() {
     }
     setTargetCrash(num.toFixed(2))
     setIsManualOverride(true)
-    toast(`Next round locked at ${num.toFixed(2)}x`)
+    aviatorSocket.setTargetCrash(num.toFixed(2))
+    toast(`Next round locked at ${num.toFixed(2)}x via socket`)
   }
 
   const handleForceCrashNow = () => {
-    const currentCrash = (1.10 + Math.random() * 0.4).toFixed(2)
+    if (isCrashing) return
+    const isFlying =
+      liveSocketPacket?.status === 1 ||
+      liveSocketPacket?.state === 'FLYING' ||
+      iframeGameState === 'FLYING'
+
+    if (!isFlying) {
+      toast('Plane is not flying right now!')
+      return
+    }
+
+    // Immediate visual response
+    setIsCrashing(true)
+    setTimeout(() => setIsCrashing(false), 1200)
+
+    // Note down the exact live flying timer from demobdg_aviator socket right now!
+    const liveMult =
+      liveFlightMultiplierRef.current ||
+      (liveSocketPacket?.multiplier ? Number(liveSocketPacket.multiplier) : null) ||
+      (aviatorSocket.liveFlyingMultiplier ? Number(aviatorSocket.liveFlyingMultiplier) : null) ||
+      1.00
+    const exactCrash = Math.max(1.0, +(Number(liveMult) || 1.0).toFixed(2))
+
+    // Send force crash across socket connection with the exact live flying timer
+    aviatorSocket.forceCrash(exactCrash)
+
     const newDrops = [
       {
         id: drops.length + 1,
         round: periodNo,
-        crash: `${currentCrash}x`,
-        n: parseFloat(currentCrash),
+        crash: `${exactCrash.toFixed(2)}x`,
+        n: exactCrash,
         at: 'Just now',
         hash: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
         pool: Math.floor(40000 + Math.random() * 30000),
@@ -107,10 +324,23 @@ export default function Aviator() {
       ...drops,
     ]
     setDrops(newDrops)
-    setMultipliers([parseFloat(currentCrash), ...multipliers.slice(0, 14)])
-    setPeriodNo((p) => p + 1)
+    setMultipliers([exactCrash, ...multipliers.slice(0, 14)])
     setIsManualOverride(false)
-    toast(`⚡ Emergency Crash Triggered at ${currentCrash}x! Round ended.`)
+    setIframeGameState('CRASHED')
+
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'FORCE_CRASH', crashPoint: exactCrash }, '*')
+    }
+
+    setLiveSocketPacket((prev) => ({
+      ...prev,
+      state: 'CRASHED',
+      status: 2,
+      multiplier: exactCrash,
+      crashPoint: exactCrash,
+    }))
+
+    toast(`💥 Plane Force Crashed at ${exactCrash.toFixed(2)}x!`)
   }
 
   const handleToggleFullscreen = () => {
@@ -216,6 +446,17 @@ export default function Aviator() {
     },
   ]
 
+  let resolvedFlightState = 'COUNTDOWN'
+  if (isCrashing) {
+    resolvedFlightState = 'CRASHING'
+  } else if (liveSocketPacket?.status === 1 || liveSocketPacket?.state === 'FLYING' || iframeGameState === 'FLYING') {
+    resolvedFlightState = 'FLYING'
+  } else if (liveSocketPacket?.status === 2 || liveSocketPacket?.state === 'CRASHED' || iframeGameState === 'CRASHED') {
+    resolvedFlightState = 'CRASHED'
+  } else {
+    resolvedFlightState = 'COUNTDOWN'
+  }
+
   return (
     <div className="space-y-5">
       {/* Page Banner with Live Badges */}
@@ -225,17 +466,37 @@ export default function Aviator() {
         crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Games' }, { label: 'Aviator' }]}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-3 py-1 text-xs font-bold text-emerald-100 backdrop-blur-xs">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-200 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+            </span>
             Live Flight Active
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/90">
-            <Smartphone size={13} /> Landscape Format
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-300 px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-xs">
+            <Smartphone size={13} className="text-blue-600" /> Landscape Format
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-400/30 px-3 py-1 text-xs font-bold text-amber-200">
-            Static Demo · No API
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold shadow-xs ${
+            socketConnected
+              ? 'bg-emerald-50 border border-emerald-300 text-emerald-800'
+              : 'bg-amber-50 border border-amber-300 text-amber-800'
+          }`}>
+            <Radio size={13} className={socketConnected ? 'animate-pulse text-emerald-600' : 'text-amber-600'} />
+            {socketConnected ? `Live Socket: ${SOCKET_CONFIG.AVIATOR.EVENT_NAME}` : `Connecting: ${SOCKET_CONFIG.AVIATOR.URL}`}
           </span>
+          <button
+            type="button"
+            onClick={() => {
+              loadAllBackendData()
+              toast('Syncing Aviator telemetry, drops & bets from backend...')
+            }}
+            disabled={isSyncing}
+            className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
+            title="Refresh from /admin/aviator/telemetry, /admin/aviator/drops, and /admin/aviator"
+          >
+            <RefreshCw size={12} className={isSyncing ? 'animate-spin text-blue-400' : 'text-slate-400'} />
+            {isSyncing ? 'Syncing...' : 'Sync Data'}
+          </button>
         </div>
       </PageBanner>
 
@@ -344,15 +605,28 @@ export default function Aviator() {
         <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 border-b border-slate-800 bg-[#0e121e]">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${socketConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${socketConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
             </span>
             <span className="text-xs font-extrabold uppercase tracking-wider text-white">
               Live Aviator Simulation
             </span>
-            <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-400 border border-slate-700/80">
+            <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-300 border border-slate-700/80">
               Round #{periodNo}
             </span>
+            <span className={`rounded px-2 py-0.5 text-[10px] font-bold border hidden sm:inline-flex items-center gap-1 ${
+              socketConnected 
+                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60' 
+                : 'bg-amber-950/80 text-amber-300 border-amber-800/60'
+            }`}>
+              <Radio size={10} className={socketConnected ? 'animate-pulse text-emerald-400' : 'text-amber-400'} />
+              {socketConnected ? SOCKET_CONFIG.AVIATOR.URL.replace(/^https?:\/\//, '') : 'connecting...'}
+            </span>
+            {liveSocketPacket?.time !== null && liveSocketPacket?.time !== undefined && (
+              <span className="rounded bg-blue-950/80 text-blue-300 px-2 py-0.5 text-[10px] font-mono font-bold border border-blue-800/60">
+                ⏱ {liveSocketPacket.time}s
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -415,162 +689,136 @@ export default function Aviator() {
             }}
           />
         </div>
-      </div>
 
-      {/* ADMIN CONTROL CONSOLE & CRASH INTERVENTION (All Previous Functionality & Buttons) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Next Crash Target Control */}
-        <div className="card bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                <Sliders size={16} />
-              </div>
-              <div>
-                <h4 className="text-sm font-black text-slate-900 tracking-tight">
-                  Next Round Crash Multiplier Control
-                </h4>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Override server seed algorithm and target a predetermined crash point
-                </p>
-              </div>
-            </div>
-
-            {isManualOverride ? (
-              <span className="rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 text-xs font-bold flex items-center gap-1">
-                <Flame size={12} className="text-amber-500" /> Manual Target Locked ({targetCrash}x)
+        {/* Live Admin Game Stats & Control Bar (Image Matching: TOTAL BET, TOTAL CASHOUT, ADMIN CRASHED, MULTIPLIER, TOTAL PLAYER) */}
+        <div className="p-3 sm:p-3.5 bg-black border-t border-slate-800/90">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
+            {/* 1. TOTAL BET */}
+            <div className="bg-[#121316] border border-white/5 rounded-2xl py-3 px-3 sm:py-3.5 sm:px-4 flex flex-col items-center justify-center text-center shadow-inner">
+              <span className="text-[11px] sm:text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">
+                TOTAL BET
               </span>
-            ) : (
-              <span className="rounded-full bg-slate-100 text-slate-600 px-2.5 py-0.5 text-xs font-semibold">
-                Auto Provably Fair RNG
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[140px]">
-              <input
-                type="number"
-                step="0.01"
-                min="1.01"
-                value={targetCrash}
-                onChange={(e) => setTargetCrash(e.target.value)}
-                placeholder="Target e.g. 2.50"
-                className="input !font-mono !font-black !text-base !pr-10 !h-10 text-slate-900"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                X
+              <span className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
+                {liveSocketPacket?.totalBet
+                  ? money(liveSocketPacket.totalBet)
+                  : String(telemetryData?.period_no) === String(periodNo) && telemetryData?.total_bet
+                  ? money(telemetryData.total_bet)
+                  : '₹0.00'}
               </span>
             </div>
 
-            <button
-              onClick={() => handleApplyNextCrash()}
-              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition shrink-0"
-            >
-              <Zap size={14} /> Set Next Crash
-            </button>
-
-            <button
-              onClick={() => {
-                setIsManualOverride(false)
-                toast('Reset to Provably Fair Auto RNG')
-              }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition shrink-0"
-            >
-              Reset to Auto RNG
-            </button>
-          </div>
-
-          {/* Quick Presets */}
-          <div className="pt-1">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Quick Multiplier Presets
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { label: '1.10x Crash', val: '1.10' },
-                { label: '1.30x Low', val: '1.30' },
-                { label: '1.50x Safe', val: '1.50' },
-                { label: '2.00x Double', val: '2.00' },
-                { label: '3.50x Mid', val: '3.50' },
-                { label: '5.00x High', val: '5.00' },
-                { label: '10.00x Moonshot', val: '10.00' },
-              ].map((p) => (
-                <button
-                  key={p.val}
-                  onClick={() => handleApplyNextCrash(p.val)}
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition"
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Emergency Intervention & RTP Settings */}
-        <div className="card bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-xs space-y-3 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
-                <ShieldAlert size={16} />
-              </div>
-              <div>
-                <h4 className="text-sm font-black text-slate-900 tracking-tight">
-                  Emergency Live Intervention
-                </h4>
-                <p className="text-[11px] text-slate-500 font-medium">Realtime flight emergency controls</p>
-              </div>
+            {/* 2. TOTAL CASHOUT */}
+            <div className="bg-[#121316] border border-white/5 rounded-2xl py-3 px-3 sm:py-3.5 sm:px-4 flex flex-col items-center justify-center text-center shadow-inner">
+              <span className="text-[11px] sm:text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">
+                TOTAL CASHOUT
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
+                {liveSocketPacket?.totalCashout
+                  ? money(liveSocketPacket.totalCashout)
+                  : String(telemetryData?.period_no) === String(periodNo) && telemetryData?.total_cashout
+                  ? money(telemetryData.total_cashout)
+                  : '₹0.00'}
+              </span>
             </div>
 
-            <div className="space-y-2 mt-3">
+            {/* 3. ADMIN BUTTON (RED FLYING / GREEN BETTING / CRIMSON CRASHED / AMBER CLICK) */}
+            {resolvedFlightState === 'CRASHING' ? (
               <button
+                type="button"
+                className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 border-2 border-yellow-200 shadow-[0_0_25px_rgba(245,158,11,0.95)] ring-4 ring-yellow-400/60 scale-95 transition-all duration-150 rounded-2xl py-2.5 px-3 sm:py-3 sm:px-4 flex flex-col items-center justify-center text-center cursor-wait select-none"
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
+                  <span className="text-[10px] sm:text-[11px] font-black tracking-wider uppercase text-slate-950/90">
+                    ADMIN
+                  </span>
+                </div>
+                <span className="text-base sm:text-lg font-black text-slate-950 tracking-wider uppercase">
+                  CRASHING...
+                </span>
+              </button>
+            ) : resolvedFlightState === 'FLYING' ? (
+              <button
+                type="button"
                 onClick={handleForceCrashNow}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-2.5 text-xs font-black text-white shadow-xs hover:from-rose-700 hover:to-red-700 transition"
+                className="bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 active:scale-95 transition-all duration-150 rounded-2xl py-2.5 px-3 sm:py-3 sm:px-4 flex flex-col items-center justify-center text-center cursor-pointer border-2 border-red-300 shadow-[0_0_25px_rgba(239,68,68,0.75)] ring-4 ring-red-500/35 animate-pulse select-none group"
+                title="Click to instantly crash flying plane!"
               >
-                <Zap size={14} /> Force Crash Round Now
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                  <span className="text-[10px] sm:text-[11px] font-black text-white/95 tracking-wider uppercase">
+                    ADMIN
+                  </span>
+                </div>
+                <span className="text-base sm:text-lg font-black text-white tracking-wider uppercase drop-shadow-md">
+                  CRASH NOW
+                </span>
               </button>
-
+            ) : resolvedFlightState === 'CRASHED' ? (
               <button
+                type="button"
                 onClick={() => {
-                  setGamePaused((p) => !p)
-                  toast(gamePaused ? 'Bets unpaused' : 'Bets quarantined & paused')
+                  toast('Round already crashed! Next round starting shortly...')
                 }}
-                className={`w-full flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition ${
-                  gamePaused
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                }`}
+                className="bg-gradient-to-r from-rose-950 via-red-900 to-stone-900 hover:bg-red-900 active:scale-95 transition-all duration-150 rounded-2xl py-2.5 px-3 sm:py-3 sm:px-4 flex flex-col items-center justify-center text-center cursor-pointer border-2 border-red-700/80 shadow-[0_0_15px_rgba(225,29,72,0.35)] select-none group"
+                title="Plane Crashed"
               >
-                {gamePaused ? <Play size={14} /> : <Pause size={14} />}
-                <span>{gamePaused ? 'Resume Round Bets' : 'Pause New Round Bets'}</span>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="w-2 h-2 rounded-full bg-red-400" />
+                  <span className="text-[10px] sm:text-[11px] font-black text-red-300 tracking-wider uppercase">
+                    ADMIN
+                  </span>
+                </div>
+                <span className="text-base sm:text-lg font-black text-red-100 tracking-wider uppercase drop-shadow-md">
+                  CRASHED
+                </span>
               </button>
-            </div>
-          </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  toast('Plane is on runway / betting phase! Waiting for takeoff to crash.')
+                }}
+                className="bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-500 hover:to-green-500 active:scale-95 transition-all duration-150 rounded-2xl py-2.5 px-3 sm:py-3 sm:px-4 flex flex-col items-center justify-center text-center cursor-pointer border-2 border-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.5)] select-none group"
+                title="Betting Phase / Plane on Runway"
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-200 animate-pulse" />
+                  <span className="text-[10px] sm:text-[11px] font-black text-emerald-100 tracking-wider uppercase">
+                    ADMIN
+                  </span>
+                </div>
+                <span className="text-base sm:text-lg font-black text-white tracking-wider uppercase drop-shadow-md">
+                  BET TIME
+                </span>
+              </button>
+            )}
 
-          <div className="pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-              <span>Target RTP:</span>
-              <div className="flex gap-1">
-                {['94', '96', '97', '98'].map((rtp) => (
-                  <button
-                    key={rtp}
-                    onClick={() => {
-                      setRtpTarget(rtp)
-                      toast(`System RTP target calibrated to ${rtp}%`)
-                    }}
-                    className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
-                      rtpTarget === rtp ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {rtp}%
-                  </button>
-                ))}
-              </div>
+            {/* 4. MULTIPLIER */}
+            <div className="bg-[#121316] border border-white/5 rounded-2xl py-3 px-3 sm:py-3.5 sm:px-4 flex flex-col items-center justify-center text-center shadow-inner">
+              <span className="text-[11px] sm:text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">
+                MULTIPLIER
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
+                {liveSocketPacket?.state === 'FLYING' && liveSocketPacket?.multiplier
+                  ? `${Number(liveSocketPacket.multiplier).toFixed(2)}x`
+                  : '₹0.00'}
+              </span>
+            </div>
+
+            {/* 5. TOTAL PLAYER */}
+            <div className="col-span-2 sm:col-span-1 bg-[#121316] border border-white/5 rounded-2xl py-3 px-3 sm:py-3.5 sm:px-4 flex flex-col items-center justify-center text-center shadow-inner">
+              <span className="text-[11px] sm:text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">
+                TOTAL PLAYER
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
+                {liveSocketPacket?.totalPlayer || usersPlaying || 0}
+              </span>
             </div>
           </div>
         </div>
       </div>
+
 
       {/* ROUND OVERVIEW & LIVE MONITORING TABLES (Drop History & User Bets) */}
       <div className="card bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-4">

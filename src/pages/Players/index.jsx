@@ -1,21 +1,103 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Users, UserPlus, Search, Wallet, Crown, ShieldCheck, ShieldAlert,
-  Phone, Copy, Check, Eye, Pencil, Trash2, ArrowUpRight, ArrowDownLeft,
+  Phone, Copy, Check, Eye, EyeOff, Lock, KeyRound, Pencil, Trash2, ArrowUpRight, ArrowDownLeft,
   Plus, Minus, TrendingUp, DollarSign, Filter, RefreshCw, X, CheckCircle2,
-  AlertCircle, Sparkles, Trophy, ExternalLink, Ban, Unlock
+  AlertCircle, Sparkles, Trophy, ExternalLink, Ban, Unlock, Loader2, LogIn
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
 import playerBg from '@/assets/images/PLAYER.png'
 import { getPlayers, savePlayers } from './playersStore'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
+import auth from '@/utils/auth'
+
+// Normalize backend player object to standard schema
+const normalizePlayer = (raw, idx) => {
+  let kyc = 'Verified'
+  if (
+    raw.kyc_status === 0 ||
+    raw.kyc_status === '0' ||
+    raw.kyc_status === 'Unverified' ||
+    raw.kyc_status === 'unverified'
+  ) {
+    kyc = 'Unverified'
+  } else if (
+    raw.kyc_status === 1 ||
+    raw.kyc_status === '1' ||
+    raw.kyc_status === 'Pending' ||
+    raw.kyc_status === 'pending'
+  ) {
+    kyc = 'Pending'
+  }
+
+  const mobileStr = String(raw.mobile || raw.phone || '')
+  const randomSuffix = mobileStr.slice(-4) || `${1000 + idx}`
+
+  return {
+    id: raw.id || raw._id || idx + 1,
+    user_id: raw.user_id || raw.userId || `VN_${mobileStr.slice(-5) || randomSuffix}`,
+    user_name: raw.username || raw.user_name || raw.name || `User_${randomSuffix}`,
+    mobile: mobileStr,
+    email: raw.email || (raw.username ? `${raw.username.toLowerCase()}@veronova.com` : ''),
+    country_code: String(raw.country_code || '91'),
+    sponsor: raw.referral_code || raw.sponsor || 'Admin',
+    sponsor_id: raw.sponsor_id || raw.referral_code || 'ADM01',
+    wallet: Number(raw.wallet ?? raw.balance ?? 0),
+    winning: Number(raw.winning ?? raw.total_winning ?? 0),
+    commission: Number(raw.commission ?? 0),
+    bonus: Number(raw.bonus ?? 0),
+    turnover: Number(raw.turnover ?? raw.total_turnover ?? 0),
+    vip_level: raw.vip_level || raw.vip || 'VIP 1',
+    status:
+      raw.status === 0 ||
+      raw.status === '0' ||
+      raw.status === 'Suspended' ||
+      raw.status === 'blocked' ||
+      raw.status === 'inactive'
+        ? 'Suspended'
+        : 'Active',
+    kyc_status: kyc,
+    created_at: raw.created_at || raw.createdAt || new Date().toLocaleDateString('en-GB'),
+    avatar_color: raw.avatar_color || (idx % 2 === 0 ? 'from-blue-600 to-indigo-600' : 'from-amber-500 to-orange-600'),
+    win_rate: raw.win_rate || '52%',
+    total_bets: raw.total_bets || 0,
+  }
+}
+
+// Robust extractor for players list from any API response structure
+const extractPlayersList = (json) => {
+  if (!json) return null
+  if (Array.isArray(json)) return json
+  if (Array.isArray(json.data)) return json.data
+  if (Array.isArray(json.players)) return json.players
+  if (Array.isArray(json.users)) return json.users
+  if (json.data && typeof json.data === 'object') {
+    if (Array.isArray(json.data.players)) return json.data.players
+    if (Array.isArray(json.data.users)) return json.data.users
+    if (Array.isArray(json.data.rows)) return json.data.rows
+    if (Array.isArray(json.data.list)) return json.data.list
+    if (Array.isArray(json.data.data)) return json.data.data
+  }
+  return null
+}
 
 export default function Players() {
-  const [rows, setRows] = useState(getPlayers)
+  const navigate = useNavigate()
+  // Pure live state from API - No static dummy data
+  const [rows, setRows] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [apiError, setApiError] = useState(null)
   const [filterTab, setFilterTab] = useState('ALL') // ALL, ACTIVE, VIP, HIGH_BALANCE, SUSPENDED
   const [vipFilter, setVipFilter] = useState('ALL')
   const [kycFilter, setKycFilter] = useState('ALL')
   const [copiedId, setCopiedId] = useState(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [lastSynced, setLastSynced] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   // Modals state
   const [viewPlayer, setViewPlayer] = useState(null)
@@ -25,12 +107,15 @@ export default function Players() {
   const [walletRemark, setWalletRemark] = useState('')
   const [addModal, setAddModal] = useState(false)
   const [newPlayer, setNewPlayer] = useState({
-    user_name: '',
     mobile: '',
+    password: '',
+    username: '',
+    email: '',
+    country_code: '91',
+    wallet: 0,
+    referral_code: 'ZUPADMIN',
+    kyc_status: 2,
     vip_level: 'VIP 1',
-    initial_wallet: '',
-    sponsor: 'Admin',
-    sponsor_id: 'ADM01',
   })
 
   const [toast, node] = useToast()
@@ -110,51 +195,135 @@ export default function Players() {
     setEditPlayer(null)
   }
 
-  // Handle Add New Player
-  const handleAddNewPlayer = (e) => {
-    e.preventDefault()
-    if (!newPlayer.user_name || !newPlayer.mobile) {
-      return toast('Please enter Name and Mobile number')
+  // Fetch Players from Backend GET /api/admin/players
+  const fetchPlayers = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+    setApiError(null)
+
+    try {
+      console.log('[Veronova Players] Fetching from:', API_ENDPOINTS.PLAYERS_PROXY)
+      const json = await apiRequest(API_ENDPOINTS.PLAYERS_PROXY, { method: 'GET' })
+      console.log('[Veronova Players] API GET Response:', json)
+
+      const list = extractPlayersList(json)
+
+      if (Array.isArray(list)) {
+        const normalized = list.map((item, idx) => normalizePlayer(item, idx))
+        setRows(normalized)
+        savePlayers(normalized)
+        setLastSynced(new Date().toLocaleTimeString())
+        if (isManual) toast(`Synced: ${normalized.length} player(s) loaded from server`)
+        console.log(`[Veronova Players] Loaded ${normalized.length} live players from API`)
+      } else {
+        console.warn('[Veronova Players] Response was not an array:', json)
+        setRows([])
+      }
+    } catch (err) {
+      console.error('[Veronova Players] GET /api/admin/players error:', err)
+      setApiError(err.message || 'Could not fetch players from backend')
+      if (isManual) toast(`Could not sync: ${err.message}`)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [toast])
+
+  // Initial load
+  useEffect(() => {
+    fetchPlayers()
+  }, [fetchPlayers])
+
+  // Quick Random Password Generator
+  const handleGeneratePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+    let pass = ''
+    for (let i = 0; i < 6; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    const finalPass = `Pass@${pass}`
+    setNewPlayer((prev) => ({ ...prev, password: finalPass }))
+    setShowPassword(true)
+    toast('Generated secure password!')
+  }
+
+  // Handle Add New Player (POST /api/admin/players)
+  const handleAddNewPlayer = async (e) => {
+    e?.preventDefault()
+
+    if (!newPlayer.mobile?.trim()) {
+      return toast('Please enter a valid mobile number')
+    }
+    if (!newPlayer.password?.trim()) {
+      return toast('Please enter a secure password')
     }
 
-    const randomId = 'VN_' + Math.floor(10000 + Math.random() * 90000)
-    const initialAmt = Number(newPlayer.initial_wallet) || 0
-    const now = new Date()
-    const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    setIsSubmitting(true)
 
-    const playerObj = {
-      id: Math.max(0, ...rows.map((r) => r.id)) + 1,
-      user_id: randomId,
-      user_name: newPlayer.user_name,
-      mobile: newPlayer.mobile,
-      email: `${newPlayer.user_name.toLowerCase().replace(/\s+/g, '')}@veronova.com`,
-      sponsor: newPlayer.sponsor || 'Admin',
-      sponsor_id: newPlayer.sponsor_id || 'ADM01',
-      wallet: initialAmt,
-      winning: 0,
-      commission: 0,
-      bonus: 0,
-      turnover: 0,
-      vip_level: newPlayer.vip_level,
-      status: 'Active',
-      kyc_status: 'Pending',
-      created_at: `${dateStr}, ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
-      avatar_color: 'from-blue-600 to-indigo-600',
-      win_rate: '0%',
-      total_bets: 0,
+    // Complete payload matching user requirements
+    const payload = {
+      mobile: String(newPlayer.mobile).trim(),
+      password: newPlayer.password.trim(),
+      country_code: String(newPlayer.country_code || '91').trim(),
+      wallet: Number(newPlayer.wallet) || 0,
+      kyc_status: Number(newPlayer.kyc_status ?? 2),
+      ...(newPlayer.username?.trim() ? { username: newPlayer.username.trim() } : {}),
+      ...(newPlayer.email?.trim() ? { email: newPlayer.email.trim() } : {}),
+      ...(newPlayer.referral_code?.trim() ? { referral_code: newPlayer.referral_code.trim() } : {}),
     }
 
-    persistRows([playerObj, ...rows])
-    toast(`Player ${playerObj.user_name} registered successfully!`)
-    setAddModal(false)
-    setNewPlayer({
-      user_name: '',
-      mobile: '',
-      vip_level: 'VIP 1',
-      initial_wallet: '',
-      sponsor: 'Admin',
-      sponsor_id: 'ADM01',
-    })
+    try {
+      console.log('[Veronova Players] Submitting POST /api/admin/players:', payload)
+      const res = await apiRequest(API_ENDPOINTS.PLAYERS_PROXY, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+
+      console.log('[Veronova Players] Registered successfully:', res)
+      toast(`Player ${payload.username || payload.mobile} registered successfully!`)
+
+      // If backend returned the created player object, add it immediately
+      const createdObj = res?.data || res?.player || res
+      if (createdObj && typeof createdObj === 'object' && (createdObj.mobile || createdObj.id)) {
+        const normalized = normalizePlayer(createdObj, rows.length)
+        persistRows((prev) => [normalized, ...prev.filter((p) => p.mobile !== normalized.mobile)])
+      } else {
+        // Fallback local representation
+        const now = new Date()
+        const localObj = normalizePlayer(
+          {
+            ...payload,
+            id: Math.max(0, ...rows.map((r) => r.id)) + 1,
+            user_id: `VN_${payload.mobile.slice(-5)}`,
+            created_at: `${now.toLocaleDateString('en-GB')}, ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
+          },
+          rows.length
+        )
+        persistRows((prev) => [localObj, ...prev])
+      }
+
+      // Sync from server
+      fetchPlayers()
+
+      // Close modal and reset form
+      setAddModal(false)
+      setNewPlayer({
+        mobile: '',
+        password: '',
+        username: '',
+        email: '',
+        country_code: '91',
+        wallet: 0,
+        referral_code: 'ZUPADMIN',
+        kyc_status: 2,
+        vip_level: 'VIP 1',
+      })
+    } catch (err) {
+      console.error('[Veronova Players] POST error:', err)
+      toast(`Registration failed: ${err.message || 'Please check backend logs'}`)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // KPI Calculations
@@ -438,12 +607,25 @@ export default function Players() {
           { label: 'User Directory' },
         ]}
       >
-        <button
-          onClick={() => setAddModal(true)}
-          className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
-        >
-          <UserPlus size={17} /> Register New Player
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fetchPlayers(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 backdrop-blur-md px-3.5 py-2.5 text-xs font-bold text-white transition-all border border-white/20 shadow-sm cursor-pointer"
+            title="Sync live players database"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span>{isRefreshing ? 'Syncing...' : lastSynced ? `Synced ${lastSynced}` : 'Sync'}</span>
+          </button>
+
+          <button
+            onClick={() => setAddModal(true)}
+            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95 cursor-pointer"
+          >
+            <UserPlus size={17} /> Register New Player
+          </button>
+        </div>
       </PageBanner>
 
       {/* Compact, Sleek Player Directory & Liquidity Stats */}
@@ -578,10 +760,28 @@ export default function Players() {
           </div>
         </div>
 
+        {/* Server Connection Notice */}
+        {apiError && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 shadow-sm flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={16} className="text-amber-600 shrink-0" />
+              <span>Notice: {apiError}</span>
+            </div>
+            <button
+              onClick={() => fetchPlayers(true)}
+              className="flex items-center gap-1 rounded bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-200 transition"
+            >
+              <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} /> Retry
+            </button>
+          </div>
+        )}
+
         {/* The Main DataTable */}
         <DataTable
           columns={cols}
           rows={displayRows}
+          loading={isLoading}
+          loadingText="Loading live players from server..."
           exportName="veronova-players-list"
           placeholder="Search by User ID, Name, Mobile, or Sponsor..."
         />
@@ -967,40 +1167,183 @@ export default function Players() {
 
       {/* ================= MODAL: REGISTER NEW PLAYER ================= */}
       {addModal && (
-        <Modal title="Register New Player" onClose={() => setAddModal(false)}>
+        <Modal
+          title="Register New Player"
+          onClose={() => setAddModal(false)}
+          width="max-w-xl"
+        >
           <form onSubmit={handleAddNewPlayer} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            {/* Top Info Banner */}
+            <div className="rounded-xl bg-blue-50/80 border border-blue-100 p-3 flex items-start gap-2.5 text-xs text-blue-900">
+              <Sparkles size={16} className="text-blue-600 shrink-0 mt-0.5" />
               <div>
-                <label className="label">Full Name / Username</label>
+                <p className="font-bold">Direct Backend Registration</p>
+                <p className="text-blue-700 text-[11px] mt-0.5">
+                  Submits to <code>POST /api/admin/players</code> with Authorization header.
+                </p>
+              </div>
+            </div>
+
+            {/* Row 1: Mobile + Password (Required fields) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="label">
+                  Mobile Number <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative flex">
+                  <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-slate-200 bg-slate-50 text-slate-500 text-xs font-bold">
+                    +{newPlayer.country_code || '91'}
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={15}
+                    placeholder="e.g. 9876543210"
+                    className="input !rounded-l-none"
+                    value={newPlayer.mobile}
+                    onChange={(e) =>
+                      setNewPlayer({
+                        ...newPlayer,
+                        mobile: e.target.value.replace(/\D/g, ''),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="label">
+                    Password <span className="text-rose-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGeneratePassword}
+                    className="text-[11px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    <KeyRound size={11} /> Auto-Generate
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Enter account password"
+                    className="input !pr-10"
+                    value={newPlayer.password}
+                    onChange={(e) =>
+                      setNewPlayer({ ...newPlayer, password: e.target.value })
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: Username + Email (Optional fields) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="label">
+                  Username <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
                 <input
+                  type="text"
+                  placeholder="e.g. RohanSharma (default: User_XXXXX)"
                   className="input"
-                  placeholder="e.g. Vicky_Player"
-                  value={newPlayer.user_name}
-                  onChange={(e) => setNewPlayer({ ...newPlayer, user_name: e.target.value })}
-                  required
+                  value={newPlayer.username}
+                  onChange={(e) =>
+                    setNewPlayer({ ...newPlayer, username: e.target.value })
+                  }
                 />
               </div>
 
               <div>
-                <label className="label">Mobile Number</label>
+                <label className="label">
+                  Email Address <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
                 <input
-                  type="tel"
+                  type="email"
+                  placeholder="e.g. rohan@example.com"
                   className="input"
-                  placeholder="e.g. 9876543210"
-                  value={newPlayer.mobile}
-                  onChange={(e) => setNewPlayer({ ...newPlayer, mobile: e.target.value })}
-                  required
+                  value={newPlayer.email}
+                  onChange={(e) =>
+                    setNewPlayer({ ...newPlayer, email: e.target.value })
+                  }
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Row 3: Initial Wallet + Referral Code */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="label">VIP Level</label>
-                <select
+                <label className="label">
+                  Initial Wallet Balance (₹) <span className="text-slate-400 font-normal">(Default: 0)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0"
+                    className="input !pl-8"
+                    value={newPlayer.wallet}
+                    onChange={(e) =>
+                      setNewPlayer({ ...newPlayer, wallet: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="label">
+                  Referral / Sponsor Code <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. ZUPADMIN"
                   className="input"
+                  value={newPlayer.referral_code}
+                  onChange={(e) =>
+                    setNewPlayer({ ...newPlayer, referral_code: e.target.value.toUpperCase() })
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Row 4: KYC Status + VIP Level */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="label">KYC Verification Status</label>
+                <select
+                  className="input font-semibold"
+                  value={newPlayer.kyc_status}
+                  onChange={(e) =>
+                    setNewPlayer({ ...newPlayer, kyc_status: Number(e.target.value) })
+                  }
+                >
+                  <option value={2}>2 - Verified (Recommended)</option>
+                  <option value={1}>1 - Pending Verification</option>
+                  <option value={0}>0 - Unverified</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="label">VIP Tier</label>
+                <select
+                  className="input font-semibold"
                   value={newPlayer.vip_level}
-                  onChange={(e) => setNewPlayer({ ...newPlayer, vip_level: e.target.value })}
+                  onChange={(e) =>
+                    setNewPlayer({ ...newPlayer, vip_level: e.target.value })
+                  }
                 >
                   <option>VIP 1</option>
                   <option>VIP 2</option>
@@ -1010,54 +1353,41 @@ export default function Players() {
                   <option>VIP 6</option>
                 </select>
               </div>
-
-              <div>
-                <label className="label">Initial Wallet (₹)</label>
-                <input
-                  type="number"
-                  className="input"
-                  placeholder="0.00"
-                  value={newPlayer.initial_wallet}
-                  onChange={(e) => setNewPlayer({ ...newPlayer, initial_wallet: e.target.value })}
-                />
-              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Sponsor Name</label>
-                <input
-                  className="input"
-                  value={newPlayer.sponsor}
-                  onChange={(e) => setNewPlayer({ ...newPlayer, sponsor: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <label className="label">Sponsor ID</label>
-                <input
-                  className="input"
-                  value={newPlayer.sponsor_id}
-                  onChange={(e) => setNewPlayer({ ...newPlayer, sponsor_id: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            {/* Footer Buttons */}
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 className="btn-ghost"
+                disabled={isSubmitting}
                 onClick={() => setAddModal(false)}
               >
                 Cancel
               </button>
-              <button type="submit" className="btn font-bold">
-                Register Player
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="btn bg-blue-600 hover:bg-blue-700 text-white font-bold inline-flex items-center gap-2 cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    <span>Registering...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={15} />
+                    <span>Register Player</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
         </Modal>
       )}
+
+
 
       {node}
     </div>

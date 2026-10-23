@@ -93,12 +93,46 @@ export const INITIAL_BANNERS = [
 
 const BANNERS_KEY = 'veronova_activity_banners_v2'
 
+/**
+ * Deduplicate banners array by unique ID and content fingerprint
+ */
+export function deduplicateBanners(list) {
+  if (!Array.isArray(list)) return []
+  const seenIds = new Set()
+  const seenContent = new Set()
+  const result = []
+
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue
+
+    const idKey = item.id !== undefined && item.id !== null ? String(item.id) : null
+    const titleKey = (item.title || item.name || '').trim().toLowerCase()
+    const routeKey = (item.target_route || item.route || '').trim().toLowerCase()
+    const contentKey = `${titleKey}|${routeKey}|${item.category || ''}`
+
+    // If ID is already present, skip duplicate
+    if (idKey && seenIds.has(idKey)) continue
+
+    // If exact same title + route + category is already present, skip duplicate
+    if (titleKey && seenContent.has(contentKey)) continue
+
+    if (idKey) seenIds.add(idKey)
+    if (titleKey) seenContent.add(contentKey)
+    result.push(item)
+  }
+
+  return result
+}
+
 export function getBanners() {
   try {
     const raw = localStorage.getItem(BANNERS_KEY)
     if (!raw) return INITIAL_BANNERS
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_BANNERS
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return deduplicateBanners(parsed)
+    }
+    return INITIAL_BANNERS
   } catch (err) {
     return INITIAL_BANNERS
   }
@@ -106,6 +140,79 @@ export function getBanners() {
 
 export function saveBanners(banners) {
   try {
-    localStorage.setItem(BANNERS_KEY, JSON.stringify(banners))
+    const clean = deduplicateBanners(banners)
+    localStorage.setItem(BANNERS_KEY, JSON.stringify(clean))
   } catch (err) {}
+}
+
+export function normalizeBanner(raw, index = 0, defaultCategory = 'Hero Carousel', entityType = 'banner') {
+  if (!raw || typeof raw !== 'object') return null
+
+  const id = raw.id ?? raw._id ?? raw['#'] ?? index + 1
+  const title = raw.title || raw.name || raw.banner_name || raw.activity_name || 'Campaign Banner'
+  const subtitle = raw.subtitle || raw.description || raw.tagline || ''
+  const category = raw.category || raw.type || (entityType === 'activity' ? 'Activity Promotion' : defaultCategory)
+  const target_route = raw.target_route || raw.route || raw.link || raw.url || '/offer'
+  const icon_type = raw.icon_type || raw.icon || 'Sparkles'
+  
+  const banner_img =
+    raw.banner_img ||
+    raw.image ||
+    raw.img ||
+    raw.image_url ||
+    raw.banner ||
+    (entityType === 'activity'
+      ? 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #6366f1 100%)'
+      : 'linear-gradient(135deg, #0f172a 0%, #312e81 50%, #4338ca 100%)')
+
+  const activity_img =
+    raw.activity_img ||
+    raw.thumbnail ||
+    raw.icon_img ||
+    raw.activity ||
+    raw.image ||
+    'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+
+  const priority = Number(raw.priority ?? raw.sequence ?? raw.order ?? raw.position ?? (index + 1))
+  
+  let status = 'Active'
+  if (raw.status !== undefined && raw.status !== null) {
+    if (typeof raw.status === 'string') {
+      const s = raw.status.trim().toLowerCase()
+      if (s === 'active' || s === '1' || s === 'enabled') status = 'Active'
+      else if (s === 'inactive' || s === '0' || s === 'disabled') status = 'Inactive'
+      else status = raw.status.charAt(0).toUpperCase() + raw.status.slice(1)
+    } else if (raw.status === 0 || raw.status === false) {
+      status = 'Inactive'
+    } else {
+      status = 'Active'
+    }
+  }
+
+  const impressions = Number(raw.impressions ?? raw.views ?? raw.view_count ?? 0)
+  const clicks = Number(raw.clicks ?? raw.click_count ?? 0)
+  let date = raw.date || raw.created_at || raw.createdAt || new Date().toISOString().slice(0, 10)
+  if (typeof date === 'string' && date.includes('T')) {
+    date = date.slice(0, 10)
+  }
+
+  const _type = raw._type || entityType || (category.includes('Activity') ? 'activity' : 'banner')
+
+  return {
+    id,
+    title,
+    subtitle,
+    category,
+    target_route,
+    icon_type,
+    banner_img,
+    activity_img,
+    priority,
+    status,
+    impressions,
+    clicks,
+    date: String(date),
+    _type,
+    raw,
+  }
 }

@@ -26,23 +26,28 @@ import {
   Feedback,
   PaymentsLimit,
   Deposit,
+  DepositPending,
+  DepositSuccess,
+  DepositReject,
   Withdrawal,
+  WithdrawalPending,
+  WithdrawalApproved,
+  WithdrawalReject,
   CustomerService,
   ProfitLoss,
   Support,
-  Reports,
-  Notifications,
-  Settings,
   Simple,
   HorseRiding,
   InHouseGames,
   ThirdPartyGames,
+  Login,
 } from '@/pages'
 import GiftHistory from '@/pages/Gift/GiftHistory'
 
 export default function AppRoutes() {
   return (
     <Routes>
+      <Route path="login" element={<Login />} />
       <Route element={<DashboardLayout />}>
         <Route index element={<Dashboard />} />
         <Route path="players" element={<Players />} />
@@ -76,7 +81,13 @@ export default function AppRoutes() {
         <Route path="feedback" element={<Feedback />} />
         <Route path="payments-limit" element={<PaymentsLimit />} />
         <Route path="deposit" element={<Deposit />} />
+        <Route path="deposit/pending" element={<DepositPending />} />
+        <Route path="deposit/success" element={<DepositSuccess />} />
+        <Route path="deposit/reject" element={<DepositReject />} />
         <Route path="withdrawal" element={<Withdrawal />} />
+        <Route path="withdrawal/pending" element={<WithdrawalPending />} />
+        <Route path="withdrawal/approved" element={<WithdrawalApproved />} />
+        <Route path="withdrawal/reject" element={<WithdrawalReject />} />
         <Route path="customer-service" element={<CustomerService />} />
         <Route path="customer-service/bank-request" element={<CustomerService activeCategory="bank_request" />} />
         <Route path="customer-service/change-password" element={<CustomerService activeCategory="change_password" />} />
@@ -85,11 +96,10 @@ export default function AppRoutes() {
         <Route path="customer-service/delete-usdt" element={<CustomerService activeCategory="delete_usdt" />} />
         <Route path="customer-service/bank-name-modification" element={<CustomerService activeCategory="bank_name" />} />
         <Route path="customer-service/game-complaints" element={<CustomerService activeCategory="game_complaints" />} />
+        <Route path="customer-service/deposit-problems" element={<CustomerService activeCategory="deposit_problems" />} />
+        <Route path="customer-service/withdraw-problems" element={<CustomerService activeCategory="withdraw_problems" />} />
         <Route path="profit-loss" element={<ProfitLoss />} />
         <Route path="support" element={<Support />} />
-        <Route path="reports" element={<Reports />} />
-        <Route path="notifications" element={<Notifications />} />
-        <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Simple />} />
       </Route>
     </Routes>

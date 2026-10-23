@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Receipt, Plus, Pencil, Trash2, ShieldCheck, CheckCircle2,
   SlidersHorizontal, RefreshCw, FileSpreadsheet, Lock, AlertCircle,
@@ -6,60 +6,185 @@ import {
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
-
-const SEED_LIMITS = [
-  { id: 1, channel: 'PhonePe UPI QR', min_amt: 100, max_amt: 50000, daily_cap: 2500000, fee: '0.0%', status: 'Active', speed: 'Instant (1-5s)', type: 'Deposit' },
-  { id: 2, channel: 'GooglePay UPI Direct', min_amt: 200, max_amt: 50000, daily_cap: 2000000, fee: '0.0%', status: 'Active', speed: 'Instant (1-5s)', type: 'Deposit' },
-  { id: 3, channel: 'Paytm Wallet & UPI', min_amt: 100, max_amt: 50000, daily_cap: 1500000, fee: '0.0%', status: 'Active', speed: 'Instant (1-5s)', type: 'Deposit' },
-  { id: 4, channel: 'IMPS Direct Netbanking', min_amt: 500, max_amt: 200000, daily_cap: 5000000, fee: '0.0%', status: 'Active', speed: '1-3 mins', type: 'Deposit' },
-  { id: 5, channel: 'USDT TRC20 Crypto', min_amt: 1700, max_amt: 1000000, daily_cap: 10000000, fee: '1.0%', status: 'Active', speed: 'Blockchain (2-5m)', type: 'Deposit' },
-  { id: 6, channel: 'Player Instant Cashout IMPS', min_amt: 500, max_amt: 100000, daily_cap: 1500000, fee: '0.0%', status: 'Active', speed: 'Instant (Under 2m)', type: 'Withdrawal' },
-]
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
+import {
+  getPaymentLimits,
+  savePaymentLimits,
+  normalizePaymentLimit,
+  deduplicateLimits,
+} from './paymentsLimitStore'
 
 export default function PaymentsLimit() {
-  const [rows, setRows] = useState(() => {
-    const raw = localStorage.getItem('veronova_payments_limit_v1')
-    return raw ? JSON.parse(raw) : SEED_LIMITS
-  })
+  const [rows, setRows] = useState(() => deduplicateLimits(getPaymentLimits()))
   const [filterTab, setFilterTab] = useState('ALL') // ALL, DEPOSIT, WITHDRAWAL
   const [modal, setModal] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastSynced, setLastSynced] = useState(null)
   const [toast, node] = useToast()
 
   const persist = (next) => {
-    setRows(next)
-    localStorage.setItem('veronova_payments_limit_v1', JSON.stringify(next))
+    const clean = deduplicateLimits(next)
+    setRows(clean)
+    savePaymentLimits(clean)
   }
+
+  // Load payment limits from /admin/payment-limits
+  const loadPaymentLimits = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+
+    try {
+      console.log(`[Veronova Payment Limits] Syncing from: ${API_ENDPOINTS.PAYMENT_LIMITS_PROXY}`)
+      const json = await apiRequest(API_ENDPOINTS.PAYMENT_LIMITS_PROXY, { method: 'GET' })
+
+      if (json && (json.status === 200 || json.data || Array.isArray(json))) {
+        const payload = json.data || json
+        const rawList =
+          payload.list ||
+          payload.limits ||
+          payload.payment_limits ||
+          payload.data ||
+          payload.rows ||
+          (Array.isArray(payload) ? payload : null)
+
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const formatted = rawList
+            .map((item, idx) => normalizePaymentLimit(item, idx))
+            .filter(Boolean)
+          const clean = deduplicateLimits(formatted)
+          setRows(clean)
+          savePaymentLimits(clean)
+          setLastSynced(new Date().toLocaleTimeString())
+          console.log(`[Veronova Payment Limits] Loaded ${clean.length} gateway rules from backend`)
+        }
+      }
+    } catch (err) {
+      console.warn('[Veronova Payment Limits] Error syncing live limits, using local cache:', err.message)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadPaymentLimits()
+  }, [loadPaymentLimits])
 
   const totalDailyCap = useMemo(() => rows.reduce((acc, r) => acc + (r.daily_cap || 0), 0), [rows])
 
   const displayRows = useMemo(() => {
-    return rows.filter((r) => {
+    const filtered = rows.filter((r) => {
       if (filterTab === 'DEPOSIT' && r.type !== 'Deposit') return false
       if (filterTab === 'WITHDRAWAL' && r.type !== 'Withdrawal') return false
       return true
     })
+    return deduplicateLimits(filtered)
   }, [rows, filterTab])
 
-  const handleSave = (e) => {
+  // Save Gateway Rule (POST /admin/payment-limits or PUT /admin/payment-limits/:id)
+  const handleSave = async (e) => {
     e.preventDefault()
+    const { channel, min_amt, max_amt, daily_cap, fee, type, speed, status } = modal.row
+
     if (modal.mode === 'add') {
       const newLimit = {
         id: Math.max(0, ...rows.map((r) => r.id)) + 1,
-        ...modal.row,
-        min_amt: Number(modal.row.min_amt) || 0,
-        max_amt: Number(modal.row.max_amt) || 0,
-        daily_cap: Number(modal.row.daily_cap) || 0,
-        status: 'Active',
-        speed: 'Instant (Auto)',
+        channel,
+        min_amt: Number(min_amt) || 0,
+        max_amt: Number(max_amt) || 0,
+        daily_cap: Number(daily_cap) || 0,
+        fee: fee?.includes('%') ? fee : `${fee}%`,
+        type: type || 'Deposit',
+        status: status || 'Active',
+        speed: speed || 'Instant (Auto)',
       }
       persist([...rows, newLimit])
-      toast(`Gateway rule for ${modal.row.channel} added!`)
+      toast(`Gateway rule for ${channel} added!`)
+
+      try {
+        await apiRequest(API_ENDPOINTS.PAYMENT_LIMITS_PROXY, {
+          method: 'POST',
+          body: JSON.stringify(newLimit),
+        }).catch(() => null)
+      } catch (err) {
+        console.warn('[Veronova Payment Limits] POST failed:', err.message)
+      }
     } else {
-      const next = rows.map((r) => (r.id === modal.row.id ? { ...r, ...modal.row } : r))
+      const patch = {
+        channel,
+        min_amt: Number(min_amt) || 0,
+        max_amt: Number(max_amt) || 0,
+        daily_cap: Number(daily_cap) || 0,
+        fee: fee?.includes('%') ? fee : `${fee}%`,
+        type: type || 'Deposit',
+        status: status || 'Active',
+      }
+      const next = rows.map((r) => (r.id === modal.row.id ? { ...r, ...patch } : r))
       persist(next)
-      toast(`Limits updated for ${modal.row.channel}!`)
+      toast(`Limits updated for ${channel}!`)
+
+      try {
+        const itemUrl = API_ENDPOINTS.PAYMENT_LIMIT_ITEM_PROXY(modal.row.id)
+        await apiRequest(itemUrl, {
+          method: 'PUT',
+          body: JSON.stringify({ id: modal.row.id, ...patch }),
+        }).catch(async () => {
+          await apiRequest(itemUrl, {
+            method: 'POST',
+            body: JSON.stringify({ id: modal.row.id, ...patch }),
+          }).catch(() => null)
+        })
+      } catch (err) {
+        console.warn(`[Veronova Payment Limits] Update failed for #${modal.row.id}:`, err.message)
+      }
     }
     setModal(null)
+  }
+
+  // Delete Gateway Rule (DELETE /admin/payment-limits/:id)
+  const handleDelete = async (id, channelName) => {
+    if (!confirm(`Delete payment gateway limit rule for "${channelName || id}"?`)) return
+
+    const next = rows.filter((r) => r.id !== id)
+    persist(next)
+    toast('Gateway rule removed')
+
+    try {
+      const itemUrl = API_ENDPOINTS.PAYMENT_LIMIT_ITEM_PROXY(id)
+      await apiRequest(itemUrl, { method: 'DELETE' }).catch(async () => {
+        await apiRequest(itemUrl, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'delete', _method: 'DELETE' }),
+        }).catch(() => null)
+      })
+    } catch (err) {
+      console.warn(`[Veronova Payment Limits] Delete failed for #${id}:`, err.message)
+    }
+  }
+
+  // Toggle Status (PUT /admin/payment-limits/:id)
+  const toggleStatus = async (limit) => {
+    const nextStatus = limit.status === 'Active' ? 'Inactive' : 'Active'
+    const next = rows.map((r) => (r.id === limit.id ? { ...r, status: nextStatus } : r))
+    persist(next)
+    toast(`${limit.channel} marked ${nextStatus}`)
+
+    try {
+      const itemUrl = API_ENDPOINTS.PAYMENT_LIMIT_ITEM_PROXY(limit.id)
+      await apiRequest(itemUrl, {
+        method: 'PUT',
+        body: JSON.stringify({ id: limit.id, status: nextStatus }),
+      }).catch(async () => {
+        await apiRequest(itemUrl, {
+          method: 'POST',
+          body: JSON.stringify({ id: limit.id, status: nextStatus }),
+        }).catch(() => null)
+      })
+    } catch (err) {
+      console.warn(`[Veronova Payment Limits] Status toggle failed for #${limit.id}:`, err.message)
+    }
   }
 
   const exportCols = [
@@ -112,21 +237,39 @@ export default function PaymentsLimit() {
       key: 'status',
       label: 'Status',
       render: (r) => (
-        <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold">
+        <button
+          onClick={() => toggleStatus(r)}
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold transition hover:opacity-85 ${
+            r.status === 'Active'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-slate-100 text-slate-600 border border-slate-200'
+          }`}
+          title="Click to toggle status"
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${r.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
           {r.status}
-        </span>
+        </button>
       ),
     },
     {
       label: 'Action',
       render: (r) => (
-        <button
-          onClick={() => setModal({ mode: 'edit', row: { ...r } })}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-700 hover:text-white transition shadow-2xs"
-          title="Edit Limits"
-        >
-          <Pencil size={13} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setModal({ mode: 'edit', row: { ...r } })}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-700 hover:text-white transition shadow-2xs"
+            title="Edit Limits"
+          >
+            <Pencil size={13} />
+          </button>
+          <button
+            onClick={() => handleDelete(r.id, r.channel)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition shadow-2xs"
+            title="Delete Gateway Rule"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       ),
     },
   ]
@@ -138,17 +281,34 @@ export default function PaymentsLimit() {
         icon={Receipt}
         crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Payments Limit' }]}
       >
-        <button
-          onClick={() =>
-            setModal({
-              mode: 'add',
-              row: { channel: '', min_amt: 100, max_amt: 50000, daily_cap: 2000000, fee: '0.0%', type: 'Deposit' },
-            })
-          }
-          className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50"
-        >
-          <Plus size={16} /> Add Gateway Channel
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {lastSynced && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-xs px-2.5 py-1 text-[11px] font-semibold text-white/90">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Synced: {lastSynced}
+            </span>
+          )}
+          <button
+            onClick={() => loadPaymentLimits(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs px-3 py-2 text-xs font-bold text-white transition disabled:opacity-50"
+            title="Sync Live Payment Limits from Backend"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Sync Live</span>
+          </button>
+          <button
+            onClick={() =>
+              setModal({
+                mode: 'add',
+                row: { channel: '', min_amt: 100, max_amt: 50000, daily_cap: 2000000, fee: '0.0%', type: 'Deposit', status: 'Active' },
+              })
+            }
+            className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50"
+          >
+            <Plus size={16} /> Add Gateway Channel
+          </button>
+        </div>
       </PageBanner>
 
       {/* Compact, Sleek Gateway Throttle & Velocity Stats */}
@@ -297,6 +457,32 @@ export default function PaymentsLimit() {
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold uppercase text-slate-600 mb-1">Gateway Type</label>
+                <select
+                  className="w-full rounded-xl border p-2.5 font-bold text-slate-900 outline-none"
+                  value={modal.row.type || 'Deposit'}
+                  onChange={(e) => setModal({ ...modal, row: { ...modal.row, type: e.target.value } })}
+                >
+                  <option value="Deposit">Deposit (Recharge)</option>
+                  <option value="Withdrawal">Withdrawal (Payout)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold uppercase text-slate-600 mb-1">Status</label>
+                <select
+                  className="w-full rounded-xl border p-2.5 font-bold text-slate-900 outline-none"
+                  value={modal.row.status || 'Active'}
+                  onChange={(e) => setModal({ ...modal, row: { ...modal.row, status: e.target.value } })}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t">
               <button type="button" onClick={() => setModal(null)} className="rounded-xl border px-3 py-2 text-xs font-bold text-slate-600">Cancel</button>
               <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">Save Gateway Limits</button>

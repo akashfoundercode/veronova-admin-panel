@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Gift as GiftIcon, Plus, Pencil, Trash2, FileSpreadsheet, Copy, Check,
@@ -7,13 +7,18 @@ import {
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
-import { getGifts, saveGifts } from './giftStore'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
+import { getGifts, saveGifts, normalizeGift } from './giftStore'
 
 export default function Gift() {
   const [rows, setRows] = useState(getGifts)
   const [filterTab, setFilterTab] = useState('ALL') // ALL, ACTIVE, EXHAUSTED
   const [copiedCode, setCopiedCode] = useState(null)
   const [modal, setModal] = useState(null) // { mode: 'add' | 'edit', row }
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastSynced, setLastSynced] = useState(null)
   const [toast, node] = useToast()
 
   // Quick Generator State
@@ -24,6 +29,44 @@ export default function Gift() {
 
   // Generate 15-digit code helper
   const genCode = () => String(Math.floor(1e14 + Math.random() * 9e14))
+
+  // Fetch all gifts from /admin/gifts
+  const loadGifts = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+
+    try {
+      console.log(`[Veronova Gifts] Fetching gifts from: ${API_ENDPOINTS.GIFTS_PROXY}`)
+      const json = await apiRequest(API_ENDPOINTS.GIFTS_PROXY, { method: 'GET' })
+
+      if (json && (json.status === 200 || json.data || Array.isArray(json))) {
+        const payload = json.data || json
+        const rawList =
+          payload.list ||
+          payload.gifts ||
+          payload.data ||
+          payload.rows ||
+          (Array.isArray(payload) ? payload : null)
+
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const formatted = rawList.map((item, idx) => normalizeGift(item, idx)).filter(Boolean)
+          setRows(formatted)
+          saveGifts(formatted)
+          setLastSynced(new Date().toLocaleTimeString())
+          console.log(`[Veronova Gifts] Loaded ${formatted.length} gifts from backend`)
+        }
+      }
+    } catch (err) {
+      console.warn('[Veronova Gifts] Error fetching live gifts, using local cache:', err.message)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadGifts()
+  }, [loadGifts])
 
   // Persist Rows
   const persistRows = (updater) => {
@@ -47,8 +90,8 @@ export default function Gift() {
     toast(`Copied gift code ${code} to clipboard!`)
   }
 
-  // Quick Generate Gift Code
-  const handleQuickCreate = (e) => {
+  // Quick Generate Gift Code (POST /admin/gifts)
+  const handleQuickCreate = async (e) => {
     e.preventDefault()
     const code = genCode()
     const peopleCount = Number(quickPeople) || 1
@@ -65,10 +108,28 @@ export default function Gift() {
     }
     persistRows((prev) => [newGift, ...prev])
     toast(`New gift code ${code} created with ${peopleCount} claims!`)
+
+    // Backend call
+    try {
+      await apiRequest(API_ENDPOINTS.GIFTS_PROXY, {
+        method: 'POST',
+        body: JSON.stringify({
+          code,
+          title: newGift.title,
+          deposit: newGift.deposit,
+          gift: newGift.gift,
+          people: newGift.people,
+          avail: newGift.avail,
+          status: newGift.status,
+        }),
+      }).catch(() => null)
+    } catch (err) {
+      console.warn('[Veronova Gifts] POST /admin/gifts failed:', err.message)
+    }
   }
 
-  // Save Modal
-  const handleSaveModal = (e) => {
+  // Save Modal (POST /admin/gifts or PUT /admin/gifts/:id)
+  const handleSaveModal = async (e) => {
     e.preventDefault()
     const { code, title, deposit, gift, people } = modal.row
     if (!deposit || !gift || !people) {
@@ -90,23 +151,60 @@ export default function Gift() {
       }
       persistRows((prev) => [record, ...prev])
       toast(`Gift code created successfully!`)
+
+      try {
+        await apiRequest(API_ENDPOINTS.GIFTS_PROXY, {
+          method: 'POST',
+          body: JSON.stringify(record),
+        }).catch(() => null)
+      } catch (err) {
+        console.warn('[Veronova Gifts] POST /admin/gifts failed:', err.message)
+      }
     } else {
-      updateRow(modal.row.id, {
+      const patch = {
         title,
         deposit: Number(deposit) || 0,
         gift: Number(gift) || 0,
         people: Number(people) || 1,
-      })
+      }
+      updateRow(modal.row.id, patch)
       toast('Gift code updated')
+
+      try {
+        const itemUrl = API_ENDPOINTS.GIFTS_ITEM_PROXY(modal.row.id)
+        await apiRequest(itemUrl, {
+          method: 'PUT',
+          body: JSON.stringify({ id: modal.row.id, ...patch }),
+        }).catch(async () => {
+          await apiRequest(itemUrl, {
+            method: 'POST',
+            body: JSON.stringify({ id: modal.row.id, ...patch }),
+          }).catch(() => null)
+        })
+      } catch (err) {
+        console.warn(`[Veronova Gifts] Update /admin/gifts/${modal.row.id} failed:`, err.message)
+      }
     }
     setModal(null)
   }
 
-  // Delete Gift
-  const handleDelete = (id) => {
-    if (confirm('Delete this gift code?')) {
-      persistRows((prev) => prev.filter((r) => r.id !== id))
-      toast('Gift code deleted')
+  // Delete Gift (DELETE /admin/gifts/:id)
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this gift code?')) return
+
+    persistRows((prev) => prev.filter((r) => r.id !== id))
+    toast('Gift code deleted')
+
+    try {
+      const itemUrl = API_ENDPOINTS.GIFTS_ITEM_PROXY(id)
+      await apiRequest(itemUrl, { method: 'DELETE' }).catch(async () => {
+        await apiRequest(itemUrl, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'delete', _method: 'DELETE' }),
+        }).catch(() => null)
+      })
+    } catch (err) {
+      console.warn(`[Veronova Gifts] DELETE /admin/gifts/${id} failed:`, err.message)
     }
   }
 
@@ -276,6 +374,21 @@ export default function Gift() {
         ]}
       >
         <div className="flex flex-wrap items-center gap-2">
+          {lastSynced && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-xs px-2.5 py-1 text-[11px] font-semibold text-white/90">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Synced: {lastSynced}
+            </span>
+          )}
+          <button
+            onClick={() => loadGifts(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs px-3 py-2 text-xs font-bold text-white transition disabled:opacity-50"
+            title="Sync Live Gifts from Backend"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Sync Live</span>
+          </button>
           <Link
             to="/gift-history"
             className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm"

@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Clock, Calendar, Search, RotateCcw, Pencil, Plus, Trash2,
   TrendingUp, Gift, Flame, Trophy, CheckCircle2, ShieldCheck,
   AlertCircle, Sparkles, SlidersHorizontal, ArrowUpRight, Copy, Check,
-  ToggleLeft, ToggleRight, HelpCircle, Users
+  ToggleLeft, ToggleRight, HelpCircle, Users, RefreshCw, KeyRound, LogIn
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
@@ -12,11 +12,88 @@ import {
   getAttendanceTiers, saveAttendanceTiers,
   getClaimLogs, saveClaimLogs
 } from './attendanceStore'
+import { apiRequest } from '@/utils/apiClient'
+import auth from '@/utils/auth'
+import { API_ENDPOINTS } from '@/constants/api'
+
+// Helper to extract attendance tiers list from any backend response shape
+function extractAttendanceList(json) {
+  if (!json) return null
+  if (Array.isArray(json)) return json
+  if (json.data && Array.isArray(json.data)) return json.data
+  if (json.data && typeof json.data === 'object') {
+    if (Array.isArray(json.data.tiers)) return json.data.tiers
+    if (Array.isArray(json.data.attendance)) return json.data.attendance
+    if (Array.isArray(json.data.rows)) return json.data.rows
+    if (Array.isArray(json.data.list)) return json.data.list
+  }
+  if (Array.isArray(json.tiers)) return json.tiers
+  if (Array.isArray(json.attendance)) return json.attendance
+  return null
+}
+
+function extractClaimsList(json) {
+  if (!json) return null
+  if (json.data && typeof json.data === 'object') {
+    if (Array.isArray(json.data.claims)) return json.data.claims
+    if (Array.isArray(json.data.logs)) return json.data.logs
+    if (Array.isArray(json.data.claim_logs)) return json.data.claim_logs
+    if (Array.isArray(json.data.history)) return json.data.history
+  }
+  if (Array.isArray(json.claims)) return json.claims
+  if (Array.isArray(json.claim_logs)) return json.claim_logs
+  return null
+}
+
+function normalizeTier(item, idx = 0) {
+  if (!item || typeof item !== 'object') {
+    return {
+      id: idx + 1,
+      day: `Day ${idx + 1}`,
+      tier_name: `Tier ${idx + 1}`,
+      accumulated: 0,
+      bonus: 0,
+      min_streak_days: idx + 1,
+      status: 'Active',
+      date: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      tag: 'Streak',
+    }
+  }
+
+  const id = item.id ?? item._id ?? (idx + 1)
+  const streakNum = item.min_streak_days ?? item.day_number ?? item.streak ?? item.days ?? (idx + 1)
+  const dayStr = item.day || `Day ${streakNum}`
+  const tierName = item.tier_name || item.name || item.title || `Tier ${streakNum}`
+  const accumulated = Number(item.accumulated ?? item.recharge_amount ?? item.target_amount ?? item.amount ?? 0)
+  const bonus = Number(item.bonus ?? item.reward ?? item.bonus_amount ?? item.reward_amount ?? 0)
+
+  const rawStatus = item.status ?? item.is_active ?? item.active
+  const isActive = rawStatus === 'Active' || rawStatus === 1 || rawStatus === true || rawStatus === 'active' || rawStatus === undefined
+
+  return {
+    id,
+    day: dayStr,
+    tier_name: tierName,
+    accumulated,
+    bonus,
+    min_streak_days: Number(streakNum),
+    status: isActive ? 'Active' : 'Paused',
+    date: item.date || item.created_at || item.updated_at || new Date().toISOString().slice(0, 19).replace('T', ' '),
+    tag: item.tag || (Number(streakNum) === 7 ? 'Jackpot' : 'Streak'),
+    raw: item,
+  }
+}
 
 export default function Attendance() {
   const [activeTab, setActiveTab] = useState('TIERS') // 'TIERS' | 'CLAIMS'
   const [tiers, setTiers] = useState(getAttendanceTiers)
   const [claimLogs, setClaimLogs] = useState(getClaimLogs)
+
+  // Live API States
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [apiError, setApiError] = useState(null)
+  const [lastSynced, setLastSynced] = useState(null)
 
   // Filters for Claims
   const [dateFrom, setDateFrom] = useState('')
@@ -49,50 +126,162 @@ export default function Attendance() {
   }
 
   // Persist Tiers
-  const persistTiers = (updater) => {
+  const persistTiers = useCallback((updater) => {
     setTiers((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       saveAttendanceTiers(next)
       return next
     })
-  }
+  }, [])
 
-  // Toggle Tier Status
-  const toggleTierStatus = (tier) => {
+  // Fetch Attendance from Backend (GET /api/admin/attendance or /admin/attendance)
+  const fetchAttendance = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+    setApiError(null)
+
+    const endpoints = [
+      API_ENDPOINTS.ATTENDANCE_PROXY,       // '/api/admin/attendance'
+      API_ENDPOINTS.ATTENDANCE_ADMIN_PROXY, // '/admin/attendance'
+    ]
+
+    let json = null
+    let usedEndpoint = null
+    let lastErr = null
+
+    for (const ep of endpoints) {
+      try {
+        console.log(`[Veronova Attendance] GET ${ep}...`)
+        json = await apiRequest(ep, { method: 'GET' })
+        usedEndpoint = ep
+        console.log(`[Veronova Attendance] Success from ${ep}:`, json)
+        break
+      } catch (err) {
+        lastErr = err
+        if (err.status === 404) {
+          console.warn(`[Veronova Attendance] ${ep} returned 404, attempting next...`)
+          continue
+        }
+        break
+      }
+    }
+
+    if (json) {
+      const tierList = extractAttendanceList(json)
+      if (Array.isArray(tierList)) {
+        const normalized = tierList.map((item, idx) => normalizeTier(item, idx))
+        persistTiers(normalized)
+        setLastSynced(new Date().toLocaleTimeString())
+        if (isManual) toast(`Synced ${normalized.length} attendance tier(s) from server`)
+        console.log(`[Veronova Attendance] Loaded ${normalized.length} live tiers from ${usedEndpoint}`)
+      }
+
+      const claimList = extractClaimsList(json)
+      if (Array.isArray(claimList)) {
+        setClaimLogs(claimList)
+        saveClaimLogs(claimList)
+      }
+    } else if (lastErr) {
+      console.error('[Veronova Attendance] Fetch error:', lastErr)
+      setApiError(lastErr.message || 'Could not fetch attendance from backend')
+      if (isManual) toast(`Sync failed: ${lastErr.message}`)
+    }
+
+    setIsLoading(false)
+    setIsRefreshing(false)
+  }, [persistTiers, toast])
+
+  // Initial load
+  useEffect(() => {
+    fetchAttendance()
+  }, [fetchAttendance])
+
+  // Toggle Tier Status (PUT /api/admin/attendance/:id or /admin/attendance/:id)
+  const toggleTierStatus = async (tier) => {
     const nextStatus = tier.status === 'Active' ? 'Paused' : 'Active'
+    
+    // Optimistic local update
     persistTiers((prev) =>
       prev.map((t) => (t.id === tier.id ? { ...t, status: nextStatus } : t))
     )
     toast(`Attendance ${tier.day} status changed to ${nextStatus}`)
+
+    // Server update
+    const updateEndpoints = [
+      `/api/admin/attendance/${tier.id}`,
+      `/admin/attendance/${tier.id}`,
+    ]
+    for (const ep of updateEndpoints) {
+      try {
+        await apiRequest(ep, {
+          method: 'PUT',
+          body: JSON.stringify({ ...tier, status: nextStatus === 'Active' ? 1 : 0 }),
+        })
+        console.log(`[Veronova Attendance] Updated status on ${ep}`)
+        break
+      } catch (e) {
+        if (e.status === 404) continue
+        // Try POST with _method PUT if PUT method not allowed
+        try {
+          await apiRequest(ep, {
+            method: 'POST',
+            body: JSON.stringify({ ...tier, status: nextStatus === 'Active' ? 1 : 0, _method: 'PUT' }),
+          })
+          break
+        } catch {}
+      }
+    }
   }
 
-  // Handle Save Edit Tier
-  const handleSaveEdit = (e) => {
+  // Handle Save Edit Tier (PUT /api/admin/attendance/:id or /admin/attendance/:id)
+  const handleSaveEdit = async (e) => {
     e.preventDefault()
+    const updatedTier = {
+      ...editTier,
+      accumulated: Number(editTier.accumulated),
+      bonus: Number(editTier.bonus),
+    }
+
     persistTiers((prev) =>
-      prev.map((t) =>
-        t.id === editTier.id
-          ? {
-              ...t,
-              ...editTier,
-              accumulated: Number(editTier.accumulated),
-              bonus: Number(editTier.bonus),
-            }
-          : t
-      )
+      prev.map((t) => (t.id === editTier.id ? updatedTier : t))
     )
     toast(`Updated ${editTier.day} bonus rules!`)
     setEditTier(null)
+
+    // Call backend API
+    const updateEndpoints = [
+      `/api/admin/attendance/${editTier.id}`,
+      `/admin/attendance/${editTier.id}`,
+    ]
+    for (const ep of updateEndpoints) {
+      try {
+        await apiRequest(ep, {
+          method: 'PUT',
+          body: JSON.stringify(updatedTier),
+        })
+        console.log(`[Veronova Attendance] Successfully saved edit on ${ep}`)
+        break
+      } catch (err) {
+        if (err.status === 404) continue
+        try {
+          await apiRequest(ep, {
+            method: 'POST',
+            body: JSON.stringify({ ...updatedTier, _method: 'PUT' }),
+          })
+          break
+        } catch {}
+      }
+    }
   }
 
-  // Handle Add New Tier
-  const handleAddNewTier = (e) => {
+  // Handle Add New Tier (POST /api/admin/attendance or /admin/attendance)
+  const handleAddNewTier = async (e) => {
     e.preventDefault()
     if (!newTier.accumulated || !newTier.bonus) {
       return toast('Please enter Accumulated Amount and Bonus Amount')
     }
 
-    const nextId = Math.max(0, ...tiers.map((t) => t.id)) + 1
+    const nextId = Math.max(0, ...tiers.map((t) => Number(t.id) || 0)) + 1
     const now = new Date()
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}`
 
@@ -111,6 +300,27 @@ export default function Attendance() {
     persistTiers([created, ...tiers])
     toast(`Added ${created.day} attendance tier successfully!`)
     setAddTierModal(false)
+
+    // Send to backend API
+    const createEndpoints = [
+      API_ENDPOINTS.ATTENDANCE_PROXY,       // '/api/admin/attendance'
+      API_ENDPOINTS.ATTENDANCE_ADMIN_PROXY, // '/admin/attendance'
+    ]
+    for (const ep of createEndpoints) {
+      try {
+        const res = await apiRequest(ep, {
+          method: 'POST',
+          body: JSON.stringify(created),
+        })
+        console.log(`[Veronova Attendance] Created tier on ${ep}:`, res)
+        fetchAttendance(true)
+        break
+      } catch (err) {
+        if (err.status === 404) continue
+        console.warn(`[Veronova Attendance] Create on ${ep} failed:`, err.message)
+      }
+    }
+
     setNewTier({
       day: `Day ${nextId + 1}`,
       tier_name: `Tier ${nextId + 1}`,
@@ -121,11 +331,25 @@ export default function Attendance() {
     })
   }
 
-  // Delete Tier
-  const handleDeleteTier = (id) => {
+  // Delete Tier (DELETE /api/admin/attendance/:id or /admin/attendance/:id)
+  const handleDeleteTier = async (id) => {
     if (window.confirm('Are you sure you want to delete this attendance tier?')) {
       persistTiers((prev) => prev.filter((t) => t.id !== id))
       toast('Attendance tier removed')
+
+      const deleteEndpoints = [
+        `/api/admin/attendance/${id}`,
+        `/admin/attendance/${id}`,
+      ]
+      for (const ep of deleteEndpoints) {
+        try {
+          await apiRequest(ep, { method: 'DELETE' })
+          console.log(`[Veronova Attendance] Deleted tier #${id} on ${ep}`)
+          break
+        } catch (e) {
+          if (e.status === 404) continue
+        }
+      }
     }
   }
 
@@ -348,6 +572,15 @@ export default function Attendance() {
       >
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => fetchAttendance(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm disabled:opacity-50 cursor-pointer"
+            title="Sync with Backend Attendance API"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span>{isRefreshing ? 'Syncing...' : 'Sync Live'}</span>
+          </button>
+          <button
             onClick={() => setRulesModal(true)}
             className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm"
           >
@@ -361,6 +594,22 @@ export default function Attendance() {
           </button>
         </div>
       </PageBanner>
+
+      {/* API Notice if any */}
+      {apiError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-600 shrink-0" />
+            <span>Notice: {apiError}</span>
+          </div>
+          <button
+            onClick={() => fetchAttendance(true)}
+            className="flex items-center gap-1 rounded bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-200 transition"
+          >
+            <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} /> Retry
+          </button>
+        </div>
+      )}
 
       {/* Bespoke Daily Streak Journey Ribbon & Attendance Bonus Console */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -823,6 +1072,8 @@ export default function Attendance() {
           </div>
         </Modal>
       )}
+
+
 
       {node}
     </div>

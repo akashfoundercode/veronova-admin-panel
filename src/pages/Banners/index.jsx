@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Image as ImageIcon, Plus, Pencil, Trash2, Eye,
   Sparkles, Wallet, Users, Crown, Trophy, Gift, ArrowUpRight,
@@ -7,21 +7,87 @@ import {
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, Modal, useToast } from '@/components/ui'
-import { getBanners, saveBanners } from './bannerStore'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
+import { getBanners, saveBanners, normalizeBanner, deduplicateBanners } from './bannerStore'
 
 export default function Banners() {
-  const [rows, setRows] = useState(getBanners)
-  const [filterTab, setFilterTab] = useState('ALL') // ALL, ACTIVITY, HERO, DEPOSIT, VIP, ACTIVE
+  const [rows, setRows] = useState(() => deduplicateBanners(getBanners()))
+  const [filterTab, setFilterTab] = useState('ALL') // ALL, BANNERS, ACTIVITY, ACTIVE, HERO, VIP
   const [modal, setModal] = useState(null) // { mode: 'add' | 'edit', row }
-  const [previewItem, setPreviewItem] = useState(rows[0] || null)
+  const [previewItem, setPreviewItem] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastSynced, setLastSynced] = useState(null)
   const [toast, node] = useToast()
 
-  // Persist Rows
+  // Load both /admin/banners and /admin/activity-banners
+  const loadBanners = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+
+    try {
+      console.log(`[Veronova Banners] Syncing from ${API_ENDPOINTS.BANNERS_PROXY} and ${API_ENDPOINTS.ACTIVITY_BANNERS_PROXY}`)
+
+      const [bannersRes, activityRes] = await Promise.allSettled([
+        apiRequest(API_ENDPOINTS.BANNERS_PROXY, { method: 'GET' }),
+        apiRequest(API_ENDPOINTS.ACTIVITY_BANNERS_PROXY, { method: 'GET' }),
+      ])
+
+      const extractList = (res, defaultCategory, entityType) => {
+        if (res.status === 'fulfilled' && res.value) {
+          const json = res.value
+          const payload = json.data || json
+          const rawList =
+            payload.list ||
+            payload.banners ||
+            payload.activity_banners ||
+            payload.activities ||
+            payload.data ||
+            payload.rows ||
+            (Array.isArray(payload) ? payload : null)
+
+          if (Array.isArray(rawList)) {
+            return rawList
+              .map((item, idx) => normalizeBanner(item, idx, defaultCategory, entityType))
+              .filter(Boolean)
+          }
+        }
+        return []
+      }
+
+      const regularList = extractList(bannersRes, 'Hero Carousel', 'banner')
+      const activityList = extractList(activityRes, 'Activity Promotion', 'activity')
+
+      // Smart deduplication: merge both lists while eliminating identical IDs or duplicate contents
+      const rawCombined = [...regularList, ...activityList]
+      const cleanCombined = deduplicateBanners(rawCombined)
+
+      if (cleanCombined.length > 0) {
+        setRows(cleanCombined)
+        saveBanners(cleanCombined)
+        setLastSynced(new Date().toLocaleTimeString())
+        console.log(`[Veronova Banners] Loaded ${cleanCombined.length} unique banners (deduplicated from ${rawCombined.length})`)
+      }
+    } catch (err) {
+      console.warn('[Veronova Banners] Error syncing banners from backend:', err.message)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadBanners()
+  }, [loadBanners])
+
+  // Persist Rows with automatic deduplication
   const persistRows = (updater) => {
     setRows((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
-      saveBanners(next)
-      return next
+      const clean = deduplicateBanners(next)
+      saveBanners(clean)
+      return clean
     })
   }
 
@@ -30,33 +96,57 @@ export default function Banners() {
     persistRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
   }
 
-  // Toggle Status
-  const toggleStatus = (banner) => {
+  // Toggle Status via PUT /admin/banners/:id or /admin/activity-banners/:id
+  const toggleStatus = async (banner) => {
     const next = banner.status === 'Active' ? 'Inactive' : 'Active'
     updateRow(banner.id, { status: next })
     toast(`Banner "${banner.title}" status changed to ${next}`)
+
+    const isActivity = banner._type === 'activity' || banner.category?.includes('Activity')
+    const itemUrl = isActivity
+      ? API_ENDPOINTS.ACTIVITY_BANNERS_ITEM_PROXY(banner.id)
+      : API_ENDPOINTS.BANNERS_ITEM_PROXY(banner.id)
+
+    try {
+      await apiRequest(itemUrl, {
+        method: 'PUT',
+        body: JSON.stringify({ id: banner.id, status: next }),
+      }).catch(async () => {
+        await apiRequest(itemUrl, {
+          method: 'POST',
+          body: JSON.stringify({ id: banner.id, status: next }),
+        }).catch(() => null)
+      })
+    } catch (err) {
+      console.warn(`[Veronova Banners] Status update failed for #${banner.id}:`, err.message)
+    }
   }
 
+  // Deduplicated base rows
+  const uniqueRows = useMemo(() => deduplicateBanners(rows), [rows])
+
   // Computations
-  const activeBanners = useMemo(() => rows.filter((r) => r.status === 'Active'), [rows])
-  const totalImpressions = useMemo(() => rows.reduce((acc, r) => acc + (r.impressions || 0), 0), [rows])
-  const totalClicks = useMemo(() => rows.reduce((acc, r) => acc + (r.clicks || 0), 0), [rows])
+  const activeBanners = useMemo(() => uniqueRows.filter((r) => r.status === 'Active'), [uniqueRows])
+  const totalImpressions = useMemo(() => uniqueRows.reduce((acc, r) => acc + (r.impressions || 0), 0), [uniqueRows])
+  const totalClicks = useMemo(() => uniqueRows.reduce((acc, r) => acc + (r.clicks || 0), 0), [uniqueRows])
   const ctrRate = useMemo(() => {
     if (!totalImpressions) return 0
     return ((totalClicks / totalImpressions) * 100).toFixed(1)
   }, [totalImpressions, totalClicks])
 
-  // Filtered Rows
+  // Filtered Rows with guaranteed deduplication
   const displayRows = useMemo(() => {
-    return rows.filter((r) => {
-      if (filterTab === 'ACTIVITY' && !r.category?.includes('Activity')) return false
+    const filtered = uniqueRows.filter((r) => {
+      if (filterTab === 'BANNERS' && (r._type === 'activity' || r.category?.includes('Activity'))) return false
+      if (filterTab === 'ACTIVITY' && r._type !== 'activity' && !r.category?.includes('Activity')) return false
       if (filterTab === 'HERO' && r.category !== 'Hero Carousel') return false
       if (filterTab === 'DEPOSIT' && r.category !== 'Deposit Promotion') return false
       if (filterTab === 'VIP' && r.category !== 'VIP Banner') return false
       if (filterTab === 'ACTIVE' && r.status !== 'Active') return false
       return true
     })
-  }, [rows, filterTab])
+    return deduplicateBanners(filtered)
+  }, [uniqueRows, filterTab])
 
   // Render Icon
   const renderIcon = (iconType, size = 16) => {
@@ -76,18 +166,20 @@ export default function Banners() {
     }
   }
 
-  // Handle Save Modal
-  const handleSaveModal = (e) => {
+  // Handle Save Modal (POST or PUT /admin/banners or /admin/activity-banners)
+  const handleSaveModal = async (e) => {
     e.preventDefault()
-    const { title, subtitle, category, target_route, icon_type, banner_img, activity_img, priority, status } = modal.row
+    const { title, subtitle, category, target_route, icon_type, banner_img, activity_img, priority, status, _type } = modal.row
     if (!title) return toast('Please enter a banner title')
+
+    const isActivity = _type === 'activity' || category?.includes('Activity')
 
     if (modal.mode === 'add') {
       const newRecord = {
         id: Math.max(0, ...rows.map((r) => r.id)) + 1,
         title,
         subtitle: subtitle || 'Special promotional activity',
-        category: category || 'Activity Promotion',
+        category: category || (isActivity ? 'Activity Promotion' : 'Hero Carousel'),
         target_route: target_route || '/offer',
         icon_type: icon_type || 'Sparkles',
         banner_img: banner_img || 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #6366f1 100%)',
@@ -97,11 +189,22 @@ export default function Banners() {
         impressions: 0,
         clicks: 0,
         date: new Date().toISOString().slice(0, 10),
+        _type: isActivity ? 'activity' : 'banner',
       }
       persistRows((prev) => [newRecord, ...prev])
-      toast(`New banner "${title}" added successfully!`)
+      toast(`New ${isActivity ? 'activity banner' : 'banner'} "${title}" added successfully!`)
+
+      const targetUrl = isActivity ? API_ENDPOINTS.ACTIVITY_BANNERS_PROXY : API_ENDPOINTS.BANNERS_PROXY
+      try {
+        await apiRequest(targetUrl, {
+          method: 'POST',
+          body: JSON.stringify(newRecord),
+        }).catch(() => null)
+      } catch (err) {
+        console.warn('[Veronova Banners] Create banner failed:', err.message)
+      }
     } else {
-      updateRow(modal.row.id, {
+      const patch = {
         title,
         subtitle,
         category,
@@ -111,17 +214,54 @@ export default function Banners() {
         activity_img,
         priority: Number(priority) || 1,
         status,
-      })
+        _type: isActivity ? 'activity' : 'banner',
+      }
+      updateRow(modal.row.id, patch)
       toast(`Banner #${modal.row.id} updated successfully`)
+
+      const itemUrl = isActivity
+        ? API_ENDPOINTS.ACTIVITY_BANNERS_ITEM_PROXY(modal.row.id)
+        : API_ENDPOINTS.BANNERS_ITEM_PROXY(modal.row.id)
+
+      try {
+        await apiRequest(itemUrl, {
+          method: 'PUT',
+          body: JSON.stringify({ id: modal.row.id, ...patch }),
+        }).catch(async () => {
+          await apiRequest(itemUrl, {
+            method: 'POST',
+            body: JSON.stringify({ id: modal.row.id, ...patch }),
+          }).catch(() => null)
+        })
+      } catch (err) {
+        console.warn(`[Veronova Banners] Update failed for #${modal.row.id}:`, err.message)
+      }
     }
     setModal(null)
   }
 
-  // Delete
-  const handleDelete = (id) => {
-    if (confirm('Delete this banner activity?')) {
-      persistRows((prev) => prev.filter((r) => r.id !== id))
-      toast('Banner removed')
+  // Delete via DELETE /admin/banners/:id or /admin/activity-banners/:id
+  const handleDelete = async (id) => {
+    const item = rows.find((r) => r.id === id)
+    if (!confirm(`Delete banner "${item?.title || id}"?`)) return
+
+    persistRows((prev) => prev.filter((r) => r.id !== id))
+    toast('Banner removed')
+
+    const isActivity = item?._type === 'activity' || item?.category?.includes('Activity')
+    const itemUrl = isActivity
+      ? API_ENDPOINTS.ACTIVITY_BANNERS_ITEM_PROXY(id)
+      : API_ENDPOINTS.BANNERS_ITEM_PROXY(id)
+
+    try {
+      await apiRequest(itemUrl, { method: 'DELETE' }).catch(async () => {
+        await apiRequest(itemUrl, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'delete', _method: 'DELETE' }),
+        }).catch(() => null)
+      })
+    } catch (err) {
+      console.warn(`[Veronova Banners] Delete failed for #${id}:`, err.message)
     }
   }
 
@@ -289,7 +429,7 @@ export default function Banners() {
     },
   ]
 
-  const currentPreview = previewItem || rows[0]
+  const currentPreview = previewItem || uniqueRows[0] || null
 
   return (
     <div className="space-y-6">
@@ -303,27 +443,45 @@ export default function Banners() {
           { label: 'Media CMS Studio' },
         ]}
       >
-        <button
-          onClick={() =>
-            setModal({
-              mode: 'add',
-              row: {
-                title: 'Invitation Bonus',
-                subtitle: 'Earn cash rewards by sharing referral link',
-                category: 'Activity Promotion',
-                target_route: '/gift',
-                icon_type: 'Gift',
-                banner_img: 'linear-gradient(135deg, #4c1d95 0%, #8b5cf6 50%, #a855f7 100%)',
-                activity_img: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
-                priority: rows.length + 1,
-                status: 'Active',
-              },
-            })
-          }
-          className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
-        >
-          <Plus size={16} /> Add Banner / Activity
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {lastSynced && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-xs px-2.5 py-1 text-[11px] font-semibold text-white/90">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Synced: {lastSynced}
+            </span>
+          )}
+          <button
+            onClick={() => loadBanners(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs px-3 py-2 text-xs font-bold text-white transition disabled:opacity-50"
+            title="Sync Live Banners from Backend"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Sync Live</span>
+          </button>
+          <button
+            onClick={() =>
+              setModal({
+                mode: 'add',
+                row: {
+                  title: 'Invitation Bonus',
+                  subtitle: 'Earn cash rewards by sharing referral link',
+                  category: 'Activity Promotion',
+                  target_route: '/gift',
+                  icon_type: 'Gift',
+                  banner_img: 'linear-gradient(135deg, #4c1d95 0%, #8b5cf6 50%, #a855f7 100%)',
+                  activity_img: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                  priority: rows.length + 1,
+                  status: 'Active',
+                  _type: 'activity',
+                },
+              })
+            }
+            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
+          >
+            <Plus size={16} /> Add Banner / Activity
+          </button>
+        </div>
       </PageBanner>
 
       {/* Bespoke Carousel & CMS Studio Command Hub */}
@@ -475,11 +633,11 @@ export default function Banners() {
           {/* Segmented Filter Pills */}
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {[
-              { id: 'ALL', label: 'All Campaigns', count: rows.length },
+              { id: 'ALL', label: 'All Media', count: rows.length },
+              { id: 'BANNERS', label: 'Home Banners (/admin/banners)', count: rows.filter((r) => r._type !== 'activity' && !r.category?.includes('Activity')).length },
+              { id: 'ACTIVITY', label: 'Activity Center (/admin/activity-banners)', count: rows.filter((r) => r._type === 'activity' || r.category?.includes('Activity')).length },
               { id: 'ACTIVE', label: 'Live Active', count: activeBanners.length },
-              { id: 'ACTIVITY', label: 'Activity Promos', count: rows.filter((r) => r.category?.includes('Activity')).length },
               { id: 'HERO', label: 'Hero Carousels', count: rows.filter((r) => r.category === 'Hero Carousel').length },
-              { id: 'DEPOSIT', label: 'Deposit Bonuses', count: rows.filter((r) => r.category === 'Deposit Promotion').length },
               { id: 'VIP', label: 'VIP Banners', count: rows.filter((r) => r.category === 'VIP Banner').length },
             ].map((tab) => (
               <button
@@ -529,9 +687,39 @@ export default function Banners() {
           maxWidth="max-w-md"
         >
           <form onSubmit={handleSaveModal} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Target API / Type
+                </label>
+                <select
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                  value={modal.row._type || 'activity'}
+                  onChange={(e) => setModal({ ...modal, row: { ...modal.row, _type: e.target.value } })}
+                >
+                  <option value="activity">Activity (/admin/activity-banners)</option>
+                  <option value="banner">Home Banner (/admin/banners)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Status
+                </label>
+                <select
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                  value={modal.row.status || 'Active'}
+                  onChange={(e) => setModal({ ...modal, row: { ...modal.row, status: e.target.value } })}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Activity Title
+                Campaign Title
               </label>
               <input
                 type="text"
@@ -617,6 +805,19 @@ export default function Banners() {
                   onChange={(e) => setModal({ ...modal, row: { ...modal.row, priority: e.target.value } })}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                Banner Artwork (Image URL or Gradient)
+              </label>
+              <input
+                type="text"
+                placeholder="https://... or linear-gradient(...)"
+                className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-mono font-medium text-slate-800 outline-none focus:border-blue-500"
+                value={modal.row.banner_img || ''}
+                onChange={(e) => setModal({ ...modal, row: { ...modal.row, banner_img: e.target.value } })}
+              />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

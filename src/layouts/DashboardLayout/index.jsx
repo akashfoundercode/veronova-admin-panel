@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useState, useEffect, Suspense } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import {
   Crown, ChevronDown, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen,
   Search, CalendarDays, Bell, Maximize, LogOut,
 } from 'lucide-react'
 import { sidebarMenus } from '@/constants/navigation'
+import VeronovaLoader from '@/components/ui/VeronovaLoader'
+import auth from '@/utils/auth'
+import { apiRequest } from '@/utils/apiClient'
+import { API_ENDPOINTS } from '@/constants/api'
 
 const linkCls = ({ isActive }) =>
   `flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-semibold transition ${
@@ -12,6 +16,7 @@ const linkCls = ({ isActive }) =>
   }`
 
 export default function DashboardLayout() {
+  const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -21,6 +26,25 @@ export default function DashboardLayout() {
     }
   })
   const loc = useLocation()
+  const currentUser = auth.getUser()
+
+  // Route protection: If unauthenticated, redirect immediately to login
+  if (!auth.isAuthenticated()) {
+    return <Navigate to="/login" replace state={{ from: loc }} />
+  }
+
+  // Handle Logout (calls backend logout endpoints and clears local session)
+  const handleLogout = async () => {
+    try {
+      console.log('[Veronova] Logging out session from server...')
+      await apiRequest(API_ENDPOINTS.LOGOUT_PROXY, { method: 'POST' }).catch(() => null)
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      auth.clearAuth()
+      navigate('/login', { replace: true })
+    }
+  }
 
   const isItemActive = (item) => {
     if (!item) return false
@@ -238,7 +262,10 @@ export default function DashboardLayout() {
                 </NavLink>
               )
             )}
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-semibold text-slate-700 hover:bg-red-50 hover:text-red-600">
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-semibold text-slate-700 hover:bg-red-50 hover:text-red-600 transition cursor-pointer"
+            >
               <LogOut size={18} /> Logout
             </button>
           </nav>
@@ -281,10 +308,12 @@ export default function DashboardLayout() {
               <Maximize size={18} />
             </button>
             <div className="flex items-center gap-2 pl-1">
-              <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 font-bold text-white text-sm">A</div>
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 font-bold text-white text-sm uppercase">
+                {(currentUser?.username || 'A')[0]}
+              </div>
               <div className="hidden leading-tight md:block">
-                <div className="text-sm font-bold">Admin</div>
-                <div className="text-[11px] text-slate-500">Super Admin</div>
+                <div className="text-sm font-bold truncate max-w-[120px]">{currentUser?.username || 'Admin'}</div>
+                <div className="text-[11px] text-slate-500">{currentUser?.role || 'Super Admin'}</div>
               </div>
               <ChevronDown size={14} className="hidden sm:block text-slate-400" />
             </div>
@@ -292,7 +321,9 @@ export default function DashboardLayout() {
         </header>
 
         <main className="flex-1 min-w-0 w-full max-w-full p-3.5 sm:p-5 md:p-6 overflow-x-hidden">
-          <Outlet />
+          <Suspense fallback={<VeronovaLoader variant="section" size="lg" text="Loading Page..." />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

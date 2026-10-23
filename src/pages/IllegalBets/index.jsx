@@ -1,14 +1,20 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   ShieldAlert, Eye, Lock, Unlock, AlertTriangle, ShieldCheck,
   TrendingDown, DollarSign, RefreshCw, Copy, Check, Search, Filter,
   ExternalLink, Ban, CheckCircle2, FileText, HelpCircle, ArrowUpRight,
-  Sliders, UserX, Cpu, Activity, Globe
+  Sliders, UserX, Cpu, Activity, Globe, Plus, KeyRound, LogIn, AlertCircle
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
 import illegalBetsBg from '@/assets/images/illegalbets.png'
-import { getIllegalUsers, saveIllegalUsers } from './illegalBetsStore'
+import {
+  getIllegalUsers, saveIllegalUsers,
+  extractIllegalUsers, normalizeIllegalUser
+} from './illegalBetsStore'
+import { apiRequest } from '@/utils/apiClient'
+import auth from '@/utils/auth'
+import { API_ENDPOINTS } from '@/constants/api'
 
 export default function IllegalBets() {
   const [rows, setRows] = useState(getIllegalUsers)
@@ -17,6 +23,30 @@ export default function IllegalBets() {
   const [rulesModal, setRulesModal] = useState(false)
   const [copiedId, setCopiedId] = useState(null)
   const [toast, node] = useToast()
+
+  // Live API States
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [apiError, setApiError] = useState(null)
+  const [lastSynced, setLastSynced] = useState(null)
+
+  // Add / Flag Illegal User Modal
+  const [flagModal, setFlagModal] = useState(false)
+  const [availablePlayers, setAvailablePlayers] = useState([])
+  const [flagForm, setFlagForm] = useState({
+    user_id: '',
+    user_name: '',
+    mobile: '',
+    email: '',
+    violation_type: 'Opposite Betting (Hedging)',
+    risk_score: 95,
+    wallet_at_risk: '50000',
+    remark: 'Opposing outcomes placed in same round',
+    status: 'Frozen',
+    ip_address: '103.214.62.11',
+    location: 'Mumbai, IN',
+  })
 
   // Copy helper
   const handleCopy = (text, id) => {
@@ -27,16 +57,103 @@ export default function IllegalBets() {
   }
 
   // Persist updater
-  const persistRows = (updater) => {
+  const persistRows = useCallback((updater) => {
     setRows((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       saveIllegalUsers(next)
       return next
     })
-  }
+  }, [])
 
-  // Toggle Account Freeze
-  const toggleFreeze = (user) => {
+  // Fetch Illegal Users from Backend (GET /admin/illegal-bets or /api/admin/players)
+  const fetchIllegalUsers = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+    setApiError(null)
+
+    let json = null
+    let usedEndpoint = null
+    let lastErr = null
+    let fromPlayersFilter = false
+
+    // 1. Primary: /api/admin/players?illegal=true, followed by dedicated illegal-bets endpoints
+    const illegalEndpoints = [
+      API_ENDPOINTS.ILLEGAL_PLAYERS_PROXY,    // '/api/admin/players?illegal=true'
+      API_ENDPOINTS.ILLEGAL_BETS_ADMIN_PROXY, // '/admin/illegal-bets'
+      API_ENDPOINTS.ILLEGAL_BETS_API_PROXY,   // '/api/admin/illegal-bets'
+    ]
+
+    for (const ep of illegalEndpoints) {
+      try {
+        console.log(`[Veronova Illegal Bets] Requesting: ${ep}`)
+        json = await apiRequest(ep, { method: 'GET' })
+        usedEndpoint = ep
+        console.log(`[Veronova Illegal Bets] Success from ${ep}:`, json)
+        break
+      } catch (err) {
+        lastErr = err
+        if (err.status === 404) continue
+        break
+      }
+    }
+
+    // 2. Fetch full players list (/api/admin/players) to populate modal dropdown and as fallback
+    try {
+      const playersJson = await apiRequest(API_ENDPOINTS.PLAYERS_PROXY, { method: 'GET' })
+      if (playersJson) {
+        const rawPlayers = Array.isArray(playersJson)
+          ? playersJson
+          : (playersJson.data || playersJson.players || playersJson.users || [])
+        const playersList = Array.isArray(rawPlayers)
+          ? rawPlayers
+          : (Array.isArray(rawPlayers.list) ? rawPlayers.list : (Array.isArray(rawPlayers.rows) ? rawPlayers.rows : []))
+        if (playersList.length > 0) {
+          setAvailablePlayers(playersList)
+
+          // If /api/admin/players?illegal=true was not found, filter from all players
+          if (!json) {
+            json = playersJson
+            usedEndpoint = API_ENDPOINTS.PLAYERS_PROXY
+            fromPlayersFilter = true
+          }
+        }
+      }
+    } catch (pErr) {
+      console.warn('[Veronova Illegal Bets] Players fetch warning:', pErr)
+      if (!json && !lastErr) lastErr = pErr
+    }
+
+    if (json) {
+      // If fromPlayersFilter is false (e.g. from /api/admin/players?illegal=true), all items are illegal
+      const list = extractIllegalUsers(json, fromPlayersFilter)
+      if (Array.isArray(list) && list.length > 0) {
+        const normalized = list.map((item, idx) => normalizeIllegalUser(item, idx)).filter(Boolean)
+        if (normalized.length > 0) {
+          persistRows(normalized)
+          setLastSynced(new Date().toLocaleTimeString())
+          if (isManual) toast(`Synced ${normalized.length} illegal bet user(s) from server`)
+          console.log(`[Veronova Illegal Bets] Loaded ${normalized.length} records from ${usedEndpoint}`)
+        }
+      } else if (fromPlayersFilter) {
+        if (isManual) toast('Connected to players API. No flagged illegal users found.')
+      }
+    } else if (lastErr) {
+      console.error('[Veronova Illegal Bets] Fetch error:', lastErr)
+      setApiError(lastErr.message || 'Could not fetch illegal users from backend')
+      if (isManual) toast(`Sync failed: ${lastErr.message}`)
+    }
+
+    setIsLoading(false)
+    setIsRefreshing(false)
+  }, [persistRows, toast])
+
+  // Initial load
+  useEffect(() => {
+    fetchIllegalUsers()
+  }, [fetchIllegalUsers])
+
+  // Toggle Account Freeze with live backend update
+  const toggleFreeze = async (user) => {
     const nextStatus = user.status === 'Frozen' ? 'Under Review' : 'Frozen'
     persistRows((prev) =>
       prev.map((u) => (u.id === user.id ? { ...u, status: nextStatus } : u))
@@ -49,6 +166,143 @@ export default function IllegalBets() {
     if (investigateUser?.id === user.id) {
       setInvestigateUser((prev) => ({ ...prev, status: nextStatus }))
     }
+
+    // Call backend
+    const payload = {
+      ...user,
+      status: nextStatus,
+      is_illegal: nextStatus === 'Frozen' ? 1 : 0,
+      illegal: nextStatus === 'Frozen',
+      illegal_bet: nextStatus === 'Frozen' ? 1 : 0,
+    }
+
+    const endpoints = [
+      `/api/admin/players/${user.id || user.user_id}`,
+      `/api/admin/players`,
+      `/admin/illegal-bets/${user.id}`,
+    ]
+    for (const ep of endpoints) {
+      try {
+        await apiRequest(ep, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        break
+      } catch (e) {
+        if (e.status === 404 || e.status === 405) {
+          try {
+            await apiRequest(ep, {
+              method: 'PUT',
+              body: JSON.stringify(payload),
+            })
+            break
+          } catch {}
+          continue
+        }
+        break
+      }
+    }
+  }
+
+  // Handle Add / Flag Illegal User (using same players & illegal-bets API)
+  const handleAddIllegalUser = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    const nextId = Math.max(0, ...rows.map((r) => Number(r.id) || 0)) + 1
+    const exposed = Number(flagForm.wallet_at_risk) || 0
+    const riskScore = Number(flagForm.risk_score) || 95
+    const riskLevel = riskScore >= 90 ? 'Critical' : riskScore >= 75 ? 'High' : 'Medium'
+
+    const newIllegal = {
+      id: nextId,
+      user_id: flagForm.user_id.trim().toUpperCase(),
+      user_name: flagForm.user_name.trim() || 'Suspect User',
+      email: flagForm.email.trim() || `${flagForm.user_id.toLowerCase()}@veronova.com`,
+      mobile: flagForm.mobile.trim() || '9876543210',
+      ip_address: flagForm.ip_address.trim() || '103.214.62.11',
+      location: flagForm.location.trim() || 'India',
+      violation_type: flagForm.violation_type,
+      risk_score: riskScore,
+      risk_level: riskLevel,
+      count: 1,
+      wallet_at_risk: exposed,
+      status: flagForm.status || 'Frozen',
+      flagged_at: new Date().toLocaleString(),
+      bets: [
+        {
+          id: `BET_${Math.floor(10000 + Math.random() * 90000)}`,
+          game: 'Colour Prediction (Wingo 1M)',
+          round_id: `#${new Date().getFullYear()}0701`,
+          choice: 'Hedging Pattern Flagged',
+          conflict: flagForm.violation_type,
+          amount: exposed > 0 ? exposed : 5000,
+          date: new Date().toLocaleString(),
+          ip: flagForm.ip_address || '103.214.62.11',
+        }
+      ]
+    }
+
+    persistRows((prev) => [newIllegal, ...prev])
+    toast(`Flagging user ${newIllegal.user_id}...`)
+
+    const payload = {
+      user_id: newIllegal.user_id,
+      username: newIllegal.user_name,
+      mobile: newIllegal.mobile,
+      is_illegal: 1,
+      illegal: true,
+      illegal_bet: 1,
+      status: newIllegal.status,
+      violation_type: newIllegal.violation_type,
+      wallet_at_risk: newIllegal.wallet_at_risk,
+      risk_score: newIllegal.risk_score,
+      remark: flagForm.remark || 'Manual administrative flag for illegal betting',
+    }
+
+    const candidateEndpoints = [
+      `/api/admin/players/${newIllegal.user_id}`,
+      `/api/admin/players`,
+      `/admin/illegal-bets`,
+      `/api/admin/illegal-bets`,
+    ]
+
+    for (const ep of candidateEndpoints) {
+      try {
+        await apiRequest(ep, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        console.log(`[Veronova Illegal Bets] Saved flag on ${ep}`)
+        break
+      } catch (err) {
+        if (err.status === 404 || err.status === 405) {
+          try {
+            await apiRequest(ep, { method: 'PUT', body: JSON.stringify(payload) })
+            break
+          } catch {}
+          continue
+        }
+        break
+      }
+    }
+
+    setIsSubmitting(false)
+    setFlagModal(false)
+    toast(`User ${newIllegal.user_id} flagged for ${newIllegal.violation_type}!`)
+    setFlagForm({
+      user_id: '',
+      user_name: '',
+      mobile: '',
+      email: '',
+      violation_type: 'Opposite Betting (Hedging)',
+      risk_score: 95,
+      wallet_at_risk: '',
+      remark: '',
+      status: 'Frozen',
+      ip_address: '103.214.62.11',
+      location: 'India',
+    })
   }
 
   // Clear / False Positive
@@ -284,6 +538,20 @@ export default function IllegalBets() {
       >
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => setFlagModal(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-white text-rose-700 px-3.5 py-2 text-xs font-bold hover:bg-rose-50 transition shadow-sm"
+          >
+            <Plus size={15} /> Flag / Add Illegal User
+          </button>
+          <button
+            onClick={() => fetchIllegalUsers(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            {isRefreshing ? 'Syncing...' : 'Sync Live'}
+          </button>
+          <button
             onClick={() => setRulesModal(true)}
             className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm"
           >
@@ -291,6 +559,14 @@ export default function IllegalBets() {
           </button>
         </div>
       </PageBanner>
+
+      {/* API Notice if any */}
+      {apiError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 shadow-sm flex items-center gap-2">
+          <AlertCircle size={16} className="text-rose-600 shrink-0" />
+          <span>Notice: {apiError}</span>
+        </div>
+      )}
 
       {/* Compact, Sleek Threat & Anti-Fraud Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -550,6 +826,219 @@ export default function IllegalBets() {
           </div>
         </Modal>
       )}
+
+      {/* ================= MODAL: ADD / FLAG ILLEGAL USER ================= */}
+      {flagModal && (
+        <Modal
+          title="Flag / Add Illegal Bet User"
+          onClose={() => setFlagModal(false)}
+          width="max-w-xl"
+        >
+          <form onSubmit={handleAddIllegalUser} className="space-y-4">
+            <div className="rounded-xl bg-amber-50 p-3.5 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+              <ShieldAlert size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Syncs with Players & Risk Engine</p>
+                <p className="text-amber-800 text-[11px] mt-0.5">
+                  Flagged users will be stored and updated live via <code>/api/admin/players</code> and <code>/admin/illegal-bets</code> with high risk score and quarantined status.
+                </p>
+              </div>
+            </div>
+
+            {/* Select from existing players or manual entry */}
+            {availablePlayers.length > 0 && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Select Existing Player (Loaded from /api/admin/players)
+                </label>
+                <select
+                  className="input w-full text-xs font-mono"
+                  onChange={(e) => {
+                    const selId = e.target.value
+                    if (!selId) return
+                    const p = availablePlayers.find(
+                      (item) => String(item.id || item.user_id || item.u_id) === String(selId)
+                    )
+                    if (p) {
+                      const uId = p.user_id || p.u_id || `VN_${p.id}`
+                      const uName = p.username || p.user_name || p.name || `User_${uId}`
+                      const uMobile = p.mobile || p.phone || ''
+                      const uEmail = p.email || `${uId.toLowerCase()}@veronova.com`
+                      const uBal = p.wallet ?? p.balance ?? 0
+                      setFlagForm((prev) => ({
+                        ...prev,
+                        user_id: uId,
+                        user_name: uName,
+                        mobile: uMobile,
+                        email: uEmail,
+                        wallet_at_risk: String(uBal || 25000),
+                        ip_address: p.ip_address || p.last_ip || '103.214.62.11',
+                      }))
+                    }
+                  }}
+                  defaultValue=""
+                >
+                  <option value="">-- Choose player to auto-fill --</option>
+                  {availablePlayers.map((p, i) => (
+                    <option key={i} value={p.id || p.user_id || p.u_id}>
+                      {p.user_id || p.u_id || `#${p.id}`} - {p.username || p.user_name || p.name || 'Player'} ({p.mobile || 'No Mobile'}) - Bal: ₹{p.wallet ?? p.balance ?? 0}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">User ID *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. MAMF1350"
+                  className="input w-full text-xs font-mono uppercase"
+                  value={flagForm.user_id}
+                  onChange={(e) => setFlagForm({ ...flagForm, user_id: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">User / Player Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Hedger_King"
+                  className="input w-full text-xs"
+                  value={flagForm.user_name}
+                  onChange={(e) => setFlagForm({ ...flagForm, user_name: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 9876543210"
+                  className="input w-full text-xs font-mono"
+                  value={flagForm.mobile}
+                  onChange={(e) => setFlagForm({ ...flagForm, mobile: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Violation Category *</label>
+                <select
+                  className="input w-full text-xs font-semibold"
+                  value={flagForm.violation_type}
+                  onChange={(e) => setFlagForm({ ...flagForm, violation_type: e.target.value })}
+                >
+                  <option value="Opposite Betting (Hedging)">Opposite Betting (Hedging)</option>
+                  <option value="Multi-Account IP Collision">Multi-Account IP Collision</option>
+                  <option value="Bot Rapid Automation">Bot Rapid Automation</option>
+                  <option value="Syndicate / Coordinated Wagers">Syndicate / Coordinated Wagers</option>
+                  <option value="Abnormal Win Rate Anomaly">Abnormal Win Rate Anomaly</option>
+                  <option value="Bonus Abuse / Wash Betting">Bonus Abuse / Wash Betting</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Risk Score (50-100)</label>
+                <input
+                  type="number"
+                  min="50"
+                  max="100"
+                  className="input w-full text-xs font-bold text-rose-600"
+                  value={flagForm.risk_score}
+                  onChange={(e) => setFlagForm({ ...flagForm, risk_score: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Wallet at Risk (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="50000"
+                  className="input w-full text-xs font-mono font-bold"
+                  value={flagForm.wallet_at_risk}
+                  onChange={(e) => setFlagForm({ ...flagForm, wallet_at_risk: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Action Status</label>
+                <select
+                  className="input w-full text-xs font-bold"
+                  value={flagForm.status}
+                  onChange={(e) => setFlagForm({ ...flagForm, status: e.target.value })}
+                >
+                  <option value="Frozen">Frozen (Quarantined)</option>
+                  <option value="Under Review">Under Review</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">IP Address</label>
+                <input
+                  type="text"
+                  placeholder="103.214.62.11"
+                  className="input w-full text-xs font-mono"
+                  value={flagForm.ip_address}
+                  onChange={(e) => setFlagForm({ ...flagForm, ip_address: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Location</label>
+                <input
+                  type="text"
+                  placeholder="Mumbai, IN"
+                  className="input w-full text-xs"
+                  value={flagForm.location}
+                  onChange={(e) => setFlagForm({ ...flagForm, location: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Administrative Remark / Reason</label>
+              <textarea
+                rows="2"
+                placeholder="Reason for flagging this user..."
+                className="input w-full text-xs"
+                value={flagForm.remark}
+                onChange={(e) => setFlagForm({ ...flagForm, remark: e.target.value })}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setFlagModal(false)}
+                className="btn-ghost text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="btn bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5"
+              >
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" /> Saving...
+                  </>
+                ) : (
+                  <>
+                    <ShieldAlert size={14} /> Flag & Quarantine User
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
 
       {node}
     </div>

@@ -138,6 +138,112 @@ export function getIllegalUsers() {
   return initialIllegalUsers
 }
 
+export function extractIllegalUsers(json, fromPlayers = false) {
+  if (!json) return null
+
+  // Helper to extract list from common keys
+  const getArray = (data) => {
+    if (!data) return null
+    if (Array.isArray(data)) return data
+    if (typeof data === 'object') {
+      if (Array.isArray(data.illegal_users)) return data.illegal_users
+      if (Array.isArray(data.illegal_betters)) return data.illegal_betters
+      if (Array.isArray(data.illegal_bets)) return data.illegal_bets
+      if (Array.isArray(data.suspects)) return data.suspects
+      if (Array.isArray(data.players)) return data.players
+      if (Array.isArray(data.users)) return data.users
+      if (Array.isArray(data.rows)) return data.rows
+      if (Array.isArray(data.list)) return data.list
+      if (Array.isArray(data.history)) return data.history
+    }
+    return null
+  }
+
+  const rawList = getArray(json.data) || getArray(json)
+  if (!Array.isArray(rawList)) return null
+
+  // Filter for illegal users
+  const isIllegal = (u) => {
+    if (!u || typeof u !== 'object') return false
+    if (u.is_illegal === 1 || u.is_illegal === true || u.is_illegal === '1') return true
+    if (u.illegal === 1 || u.illegal === true || u.illegal === '1' || u.illegal === 'true') return true
+    if (u.illegal_bet === 1 || u.illegal_bet === true || u.illegal_bet === '1') return true
+    if (u.illegal_betters === 1 || u.illegal_betters === true) return true
+    if (u.violation_type || u.violation || u.risk_score) return true
+    const st = String(u.status || '').toLowerCase()
+    if (st.includes('illegal') || st.includes('frozen') || st.includes('susp')) return true
+    return false
+  }
+
+  const filtered = rawList.filter(isIllegal)
+  if (fromPlayers) {
+    return filtered
+  }
+  // Dedicated endpoint: if filtered has matches, use them, otherwise treat rawList as illegal records
+  if (filtered.length > 0) return filtered
+  return rawList
+}
+
+export function normalizeIllegalUser(raw, idx = 0) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = raw.id || raw._id || idx + 1
+  const mobileStr = String(raw.mobile || raw.phone || '')
+  const randomSuffix = mobileStr.slice(-4) || `${1000 + idx}`
+
+  const userId = raw.user_id || raw.u_id || raw.userId || `VN_${mobileStr.slice(-5) || randomSuffix}`
+  const userName = raw.username || raw.user_name || raw.name || `User_${randomSuffix}`
+  const wallet = Number(raw.wallet_at_risk ?? raw.wallet ?? raw.balance ?? 0)
+
+  // Risk score & level
+  const score = Number(raw.risk_score || raw.risk || (raw.status === 'Frozen' ? 95 : 82))
+  const level = raw.risk_level || (score >= 90 ? 'Critical' : score >= 75 ? 'High' : 'Medium')
+
+  // Violation type
+  const violation = raw.violation_type || raw.violation || raw.reason || 'Opposite Betting (Hedging)'
+
+  // Status
+  let status = 'Under Review'
+  const rawStatus = String(raw.status || '').toLowerCase()
+  if (rawStatus === 'frozen' || rawStatus === 'blocked' || raw.status === 0 || raw.status === '0') {
+    status = 'Frozen'
+  } else if (rawStatus === 'cleared') {
+    status = 'Cleared'
+  }
+
+  // Bets list
+  const bets = Array.isArray(raw.bets) && raw.bets.length > 0 ? raw.bets : [
+    {
+      id: `BET_${Math.floor(10000 + Math.random() * 90000)}`,
+      game: 'Colour Prediction (Wingo 1M)',
+      round_id: `#${new Date().getFullYear()}0701`,
+      choice: 'Hedging pattern detected',
+      conflict: violation,
+      amount: wallet > 0 ? Math.min(wallet, 5000) : 2500,
+      date: raw.flagged_at || raw.created_at || new Date().toLocaleString(),
+      ip: raw.ip_address || raw.ip || '103.214.62.11',
+    }
+  ]
+
+  return {
+    id,
+    user_id: userId,
+    user_name: userName,
+    email: raw.email || (raw.username ? `${raw.username.toLowerCase()}@veronova.com` : 'user@veronova.com'),
+    mobile: mobileStr,
+    ip_address: raw.ip_address || raw.ip || raw.last_ip || '103.214.62.11',
+    location: raw.location || raw.city || 'India',
+    violation_type: violation,
+    risk_score: score,
+    risk_level: level,
+    count: Number(raw.count || raw.illegal_bets_count || raw.total_illegal_bets || bets.length || 1),
+    wallet_at_risk: wallet,
+    status,
+    flagged_at: raw.flagged_at || raw.created_at || new Date().toLocaleString(),
+    bets,
+    raw,
+  }
+}
+
 export function saveIllegalUsers(list) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
@@ -145,4 +251,5 @@ export function saveIllegalUsers(list) {
     console.error('Error saving illegal bets users:', e)
   }
 }
+
 

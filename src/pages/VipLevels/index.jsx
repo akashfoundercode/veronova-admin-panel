@@ -1,28 +1,53 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Crown, Pencil, Plus, Gift, Trophy, Sparkles, TrendingUp,
   ShieldCheck, CheckCircle2, Copy, Check, Users, IndianRupee,
-  Receipt, Flame, HelpCircle, ArrowUpRight, Award, Zap, Send
+  Receipt, Flame, HelpCircle, ArrowUpRight, Award, Zap, Send,
+  RefreshCw, KeyRound, LogIn, AlertCircle, SlidersHorizontal
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
 import vipBg from '@/assets/images/VIP.png'
 import {
   getVipTiers, saveVipTiers,
-  getVipClaims, saveVipClaims
+  getVipClaims, saveVipClaims,
+  extractVipList, extractVipClaimsList, normalizeVipTier,
+  VIP_TIER_STYLES
 } from './vipStore'
+import { apiRequest } from '@/utils/apiClient'
+import auth from '@/utils/auth'
+import { API_ENDPOINTS } from '@/constants/api'
 
 export default function VipLevels() {
   const [activeTab, setActiveTab] = useState('TIERS') // 'TIERS' | 'CLAIMS' | 'LADDER'
   const [tiers, setTiers] = useState(getVipTiers)
   const [claims, setClaims] = useState(getVipClaims)
 
+  // Live API States
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [apiError, setApiError] = useState(null)
+  const [lastSynced, setLastSynced] = useState(null)
+
   // Modals
   const [editTier, setEditTier] = useState(null)
+  const [addTierModal, setAddTierModal] = useState(false)
   const [awardModal, setAwardModal] = useState(false)
   const [rulesModal, setRulesModal] = useState(false)
   const [receiptModal, setReceiptModal] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
+
+  // Form for New VIP Tier
+  const [newTier, setNewTier] = useState({
+    name: 'VIP 11',
+    title: 'Grand Celestial Titan',
+    range: '15000000000',
+    up: '3000000',
+    month: '1200000',
+    rebate: '1.80%',
+    status: 'Active',
+  })
 
   // Form for Manual Awarding VIP Fund
   const [awardForm, setAwardForm] = useState({
@@ -45,50 +70,287 @@ export default function VipLevels() {
   }
 
   // Persist tiers
-  const persistTiers = (updater) => {
+  const persistTiers = useCallback((updater) => {
     setTiers((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       saveVipTiers(next)
       return next
     })
-  }
+  }, [])
 
   // Persist claims
-  const persistClaims = (updater) => {
+  const persistClaims = useCallback((updater) => {
     setClaims((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       saveVipClaims(next)
       return next
     })
-  }
+  }, [])
 
-  // Toggle Tier Status
-  const toggleTierStatus = (tier) => {
+  // Fetch VIP Levels from Backend (GET /admin/vip-levels or /api/admin/vip-levels)
+  const fetchVipLevels = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true)
+    else setIsLoading(true)
+    setApiError(null)
+
+    const endpoints = [
+      API_ENDPOINTS.VIP_LEVELS_ADMIN_PROXY, // '/admin/vip-levels'
+      API_ENDPOINTS.VIP_LEVELS_API_PROXY,   // '/api/admin/vip-levels'
+    ]
+
+    let json = null
+    let usedEndpoint = null
+    let lastErr = null
+
+    for (const ep of endpoints) {
+      try {
+        console.log(`[Veronova VIP] GET ${ep}...`)
+        json = await apiRequest(ep, { method: 'GET' })
+        usedEndpoint = ep
+        console.log(`[Veronova VIP] Success from ${ep}:`, json)
+        break
+      } catch (err) {
+        lastErr = err
+        if (err.status === 404) {
+          console.warn(`[Veronova VIP] ${ep} returned 404, attempting next...`)
+          continue
+        }
+        break
+      }
+    }
+
+    if (json) {
+      const list = extractVipList(json)
+      if (Array.isArray(list) && list.length > 0) {
+        const normalized = list.map((item, idx) => normalizeVipTier(item, idx)).filter(Boolean)
+        if (normalized.length > 0) {
+          persistTiers(normalized)
+          setLastSynced(new Date().toLocaleTimeString())
+          if (isManual) toast(`Synced ${normalized.length} VIP tier(s) from server`)
+          console.log(`[Veronova VIP] Loaded ${normalized.length} live tiers from ${usedEndpoint}`)
+        }
+      }
+
+      const claimsList = extractVipClaimsList(json)
+      if (Array.isArray(claimsList) && claimsList.length > 0) {
+        persistClaims(claimsList)
+      }
+    } else if (lastErr) {
+      console.error('[Veronova VIP] Fetch error:', lastErr)
+      setApiError(lastErr.message || 'Could not fetch VIP levels from backend')
+      if (isManual) toast(`Sync failed: ${lastErr.message}`)
+    }
+
+    setIsLoading(false)
+    setIsRefreshing(false)
+  }, [persistTiers, persistClaims, toast])
+
+  // Initial load
+  useEffect(() => {
+    fetchVipLevels()
+  }, [fetchVipLevels])
+
+  // Toggle Tier Status (POST /api/admin/vip-levels/:id ya PUT /api/admin/vip-levels/:id)
+  const toggleTierStatus = async (tier) => {
     const nextStatus = tier.status === 'Active' ? 'Paused' : 'Active'
     persistTiers((prev) =>
       prev.map((t) => (t.id === tier.id ? { ...t, status: nextStatus } : t))
     )
     toast(`${tier.name} status updated to ${nextStatus}`)
+
+    const payload = {
+      ...tier,
+      status: nextStatus === 'Active' ? 1 : 0,
+      is_active: nextStatus === 'Active' ? 1 : 0,
+    }
+
+    const candidateEndpoints = [
+      `/api/admin/vip-levels/${tier.id}`,
+      `/api/admin/vip-levels`,
+      `/admin/vip-levels/${tier.id}`,
+      `/admin/vip-levels`,
+    ]
+
+    for (const ep of candidateEndpoints) {
+      try {
+        await apiRequest(ep, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        break
+      } catch (err) {
+        if (err.status === 404 || err.status === 405) {
+          try {
+            await apiRequest(ep, {
+              method: 'PUT',
+              body: JSON.stringify(payload),
+            })
+            break
+          } catch {}
+          continue
+        }
+        break
+      }
+    }
   }
 
-  // Save Edit Tier
-  const handleSaveEdit = (e) => {
+  // Save Edit Tier (POST /api/admin/vip-levels/:id ya POST /api/admin/vip-levels)
+  const handleSaveEdit = async (e) => {
     e.preventDefault()
+    setIsSaving(true)
+    const updatedTier = {
+      ...editTier,
+      range: Number(editTier.range),
+      up: Number(editTier.up),
+      month: Number(editTier.month),
+    }
+
+    // Optimistic local update
     persistTiers((prev) =>
-      prev.map((t) =>
-        t.id === editTier.id
-          ? {
-              ...t,
-              ...editTier,
-              range: Number(editTier.range),
-              up: Number(editTier.up),
-              month: Number(editTier.month),
-            }
-          : t
-      )
+      prev.map((t) => (t.id === editTier.id ? updatedTier : t))
     )
-    toast(`Updated ${editTier.name} rules successfully!`)
-    setEditTier(null)
+
+    const payload = {
+      id: editTier.id,
+      level: editTier.level || editTier.id,
+      name: editTier.name,
+      title: editTier.title,
+      range: Number(editTier.range),
+      up: Number(editTier.up),
+      month: Number(editTier.month),
+      rebate: editTier.rebate,
+      status: editTier.status === 'Active' ? 1 : 0,
+      is_active: editTier.status === 'Active' ? 1 : 0,
+      betting_turnover: Number(editTier.range),
+      turnover_target: Number(editTier.range),
+      target: Number(editTier.range),
+      level_up_reward: Number(editTier.up),
+      upgrade_bonus: Number(editTier.up),
+      monthly_salary: Number(editTier.month),
+      monthly_bonus: Number(editTier.month),
+      cash_rebate: editTier.rebate,
+    }
+
+    const candidateEndpoints = [
+      `/api/admin/vip-levels/${editTier.id}`,
+      `/api/admin/vip-levels`,
+      `/admin/vip-levels/${editTier.id}`,
+      `/admin/vip-levels`,
+    ]
+
+    let saved = false
+    let lastError = null
+
+    for (const ep of candidateEndpoints) {
+      try {
+        console.log(`[Veronova VIP] POST ${ep}...`, payload)
+        await apiRequest(ep, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        saved = true
+        console.log(`[Veronova VIP] Saved successfully on ${ep}`)
+        break
+      } catch (err) {
+        lastError = err
+        if (err.status === 404 || err.status === 405) {
+          try {
+            await apiRequest(ep, {
+              method: 'PUT',
+              body: JSON.stringify(payload),
+            })
+            saved = true
+            break
+          } catch {}
+          continue
+        }
+        break
+      }
+    }
+
+    setIsSaving(false)
+    if (saved) {
+      toast(`Updated ${editTier.name} rules successfully on server!`)
+      setEditTier(null)
+    } else {
+      console.warn('[Veronova VIP] Server save warning:', lastError)
+      toast(`Saved locally! Server: ${lastError?.message || 'Check backend connection'}`)
+      setEditTier(null)
+    }
+  }
+
+  // Create New VIP Tier (POST /api/admin/vip-levels)
+  const handleAddTier = async (e) => {
+    e.preventDefault()
+    setIsSaving(true)
+    const nextId = Math.max(0, ...tiers.map((t) => Number(t.id) || 0)) + 1
+    const nextLevel = Math.max(0, ...tiers.map((t) => Number(t.level) || 0)) + 1
+    const styleIdx = (nextLevel - 1) % VIP_TIER_STYLES.length
+    const style = VIP_TIER_STYLES[styleIdx] || VIP_TIER_STYLES[0]
+
+    const newTierItem = {
+      id: nextId,
+      level: nextLevel,
+      name: newTier.name.trim() || `VIP ${nextLevel}`,
+      title: newTier.title.trim() || 'Supreme VIP Challenger',
+      range: Number(newTier.range) || 0,
+      up: Number(newTier.up) || 0,
+      month: Number(newTier.month) || 0,
+      rebate: newTier.rebate.trim() || '1.80%',
+      members: 0,
+      status: newTier.status,
+      color: style.color,
+      badge_color: style.badge_color,
+    }
+
+    persistTiers((prev) => [...prev, newTierItem])
+    toast(`Adding ${newTierItem.name}...`)
+
+    const payload = {
+      ...newTierItem,
+      status: newTierItem.status === 'Active' ? 1 : 0,
+      is_active: newTierItem.status === 'Active' ? 1 : 0,
+      betting_turnover: newTierItem.range,
+      turnover_target: newTierItem.range,
+      target: newTierItem.range,
+      level_up_reward: newTierItem.up,
+      upgrade_bonus: newTierItem.up,
+      monthly_salary: newTierItem.month,
+      monthly_bonus: newTierItem.month,
+      cash_rebate: newTierItem.rebate,
+    }
+
+    const candidateEndpoints = [
+      `/api/admin/vip-levels`,
+      `/admin/vip-levels`,
+    ]
+
+    for (const ep of candidateEndpoints) {
+      try {
+        await apiRequest(ep, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        console.log(`[Veronova VIP] Created tier on ${ep}`)
+        break
+      } catch (err) {
+        if (err.status === 404) continue
+        break
+      }
+    }
+
+    setIsSaving(false)
+    setAddTierModal(false)
+    toast(`VIP Tier ${newTierItem.name} added successfully!`)
+    setNewTier({
+      name: `VIP ${nextLevel + 1}`,
+      title: 'Legend Titan',
+      range: '',
+      up: '',
+      month: '',
+      rebate: '2.00%',
+      status: 'Active',
+    })
   }
 
   // Handle Manual Award VIP Fund
@@ -135,111 +397,67 @@ export default function VipLevels() {
   const monthlyFundPool = tiers.reduce((acc, t) => acc + (Number(t.month) || 0), 0)
   const maxJackpotReward = Math.max(...tiers.map((t) => Number(t.up) || 0))
 
-  // Tier Table Columns
+  // Tier Table Columns - Exactly: ID, Name, Betting Range, Level Up Rewards, Monthly Rewards, Action
   const tierCols = [
     {
       key: 'id',
-      label: '#ID',
-      render: (r) => <span className="font-mono text-xs font-bold text-slate-400">#{r.id}</span>,
+      label: 'ID',
+      render: (r) => <span className="font-mono text-xs font-bold text-slate-700">#{r.id}</span>,
     },
     {
       key: 'name',
-      label: 'VIP Tier',
+      label: 'Name',
       render: (r) => (
-        <div className="flex items-center gap-2.5 min-w-[170px]">
+        <div className="flex items-center gap-2.5 min-w-[150px]">
           <div
-            className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${r.color} text-white font-black text-xs shadow-md`}
+            className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${r.color || 'from-amber-600 to-amber-800'} text-white font-black text-xs shadow-xs`}
           >
-            <Crown size={18} fill="currentColor" />
+            <Crown size={16} fill="currentColor" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-slate-900 text-sm">{r.name}</span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-semibold">{r.title}</p>
+            <span className="font-extrabold text-slate-900 text-sm">{r.name}</span>
+            {r.title && <p className="text-[11px] text-slate-500 font-semibold">{r.title}</p>}
           </div>
         </div>
       ),
     },
     {
       key: 'range',
-      label: 'Betting Turnover Target',
+      label: 'Betting Range',
       render: (r) => (
         <div className="font-extrabold text-slate-900 text-sm">
-          ₹{Number(r.range).toLocaleString('en-IN')}
-          <span className="block text-[10px] text-slate-400 font-normal">Accumulated Bets</span>
+          ₹{Number(r.range || 0).toLocaleString('en-IN')}
         </div>
       ),
     },
     {
       key: 'up',
-      label: 'Level-Up Fund Reward',
+      label: 'Level Up Rewards',
       render: (r) => (
         <div className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700 font-black text-sm border border-emerald-200">
           <Gift size={14} className="text-emerald-600" />
-          ₹{Number(r.up).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          ₹{Number(r.up || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
         </div>
       ),
     },
     {
       key: 'month',
-      label: 'Monthly VIP Salary / Fund',
+      label: 'Monthly Rewards',
       render: (r) => (
         <div className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2.5 py-1 text-purple-700 font-black text-sm border border-purple-200">
           <Trophy size={14} className="text-purple-600" />
-          ₹{Number(r.month).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          ₹{Number(r.month || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
         </div>
-      ),
-    },
-    {
-      key: 'rebate',
-      label: 'Daily Cash Rebate',
-      render: (r) => (
-        <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 border border-blue-200">
-          {r.rebate || '0.20%'}
-        </span>
-      ),
-    },
-    {
-      key: 'members',
-      label: 'Active Members',
-      render: (r) => (
-        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-          <Users size={13} className="text-slate-400" />
-          <span>{r.members} Players</span>
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (r) => (
-        <button
-          onClick={() => toggleTierStatus(r)}
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold transition hover:opacity-85 ${
-            r.status === 'Active'
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              : 'bg-slate-100 text-slate-600 border border-slate-200'
-          }`}
-          title="Click to toggle status"
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              r.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
-            }`}
-          />
-          {r.status}
-        </button>
       ),
     },
     {
       label: 'Action',
       render: (r) => (
         <button
-          className="btn !py-1.5 text-xs font-bold flex items-center gap-1"
+          className="btn !py-1.5 text-xs font-bold flex items-center gap-1 cursor-pointer"
           onClick={() => setEditTier(r)}
         >
-          <Pencil size={13} /> Edit Tier
+          <Pencil size={13} /> Edit
         </button>
       ),
     },
@@ -260,27 +478,31 @@ export default function VipLevels() {
     {
       key: 'user',
       label: 'VIP Player',
-      render: (r) => (
-        <div className="flex items-center gap-2.5 min-w-[170px]">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 text-white font-black text-xs shadow-xs">
-            {r.user_name.slice(0, 2).toUpperCase()}
-          </div>
-          <div>
-            <p className="font-extrabold text-slate-900 text-sm">{r.user_name}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-1 rounded">
-                {r.user_id}
-              </span>
-              <button
-                onClick={() => handleCopy(r.user_id, r.id)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                {copiedId === r.id ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
-              </button>
+      render: (r) => {
+        const uName = r?.user_name || r?.name || r?.user || 'VIP Member'
+        const uId = r?.user_id || r?.u_id || `VIP_${r?.id || 1}`
+        return (
+          <div className="flex items-center gap-2.5 min-w-[170px]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 text-white font-black text-xs shadow-xs">
+              {String(uName).slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <p className="font-extrabold text-slate-900 text-sm">{uName}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-1 rounded">
+                  {uId}
+                </span>
+                <button
+                  onClick={() => handleCopy(uId, r?.id)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  {copiedId === r?.id ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ),
+        )
+      },
     },
     {
       key: 'vip_level',
@@ -360,20 +582,60 @@ export default function VipLevels() {
         ]}
       >
         <div className="flex flex-wrap items-center gap-2">
+          {lastSynced && (
+            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-white/80 bg-white/10 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-white/20">
+              Synced: {lastSynced}
+            </span>
+          )}
+
+          <button
+            onClick={() => fetchVipLevels(true)}
+            disabled={isRefreshing || isLoading}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm disabled:opacity-50 cursor-pointer"
+            title="Refresh VIP levels from backend"
+          >
+            <RefreshCw size={14} className={isRefreshing || isLoading ? 'animate-spin' : ''} />
+            <span>{isRefreshing || isLoading ? 'Syncing...' : 'Sync Live'}</span>
+          </button>
+
+          <button
+            onClick={() => setAddTierModal(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm cursor-pointer"
+          >
+            <Plus size={15} /> Add VIP Level
+          </button>
+
           <button
             onClick={() => setRulesModal(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm"
+            className="flex items-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-md px-3.5 py-2 text-xs font-bold text-white border border-white/30 hover:bg-white/30 transition shadow-sm cursor-pointer"
           >
             <HelpCircle size={15} /> VIP Rules & Perks
           </button>
+
           <button
             onClick={() => setAwardModal(true)}
-            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-blue-700 shadow-xl transition-all hover:bg-blue-50 hover:shadow-2xl hover:scale-105 active:scale-95 cursor-pointer"
           >
             <Send size={16} /> Award VIP Fund
           </button>
         </div>
       </PageBanner>
+
+      {/* API Notice if any */}
+      {apiError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-600 shrink-0" />
+            <span>Notice: {apiError}</span>
+          </div>
+          <button
+            onClick={() => fetchVipLevels(true)}
+            className="flex items-center gap-1 rounded bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-200 transition"
+          >
+            <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} /> Retry
+          </button>
+        </div>
+      )}
 
       {/* Compact, Sleek VIP Loyalty Performance Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -501,9 +763,11 @@ export default function VipLevels() {
               </button>
             </div>
 
+
             <DataTable
               columns={tierCols}
               rows={tiers}
+              loading={isLoading || isRefreshing}
               exportName="vip-tier-slabs"
               placeholder="Search by VIP name or title..."
             />
@@ -599,7 +863,7 @@ export default function VipLevels() {
           <form onSubmit={handleSaveEdit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="label">VIP Tier Name</label>
+                <label className="label">Name</label>
                 <input
                   className="input font-bold"
                   value={editTier.name}
@@ -620,7 +884,7 @@ export default function VipLevels() {
             </div>
 
             <div>
-              <label className="label">Betting Turnover Requirement (₹)</label>
+              <label className="label">Betting Range (₹)</label>
               <input
                 type="number"
                 min="0"
@@ -634,7 +898,7 @@ export default function VipLevels() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="label">Level Up Fund Reward (₹)</label>
+                <label className="label">Level Up Rewards (₹)</label>
                 <input
                   type="number"
                   min="0"
@@ -647,7 +911,7 @@ export default function VipLevels() {
               </div>
 
               <div>
-                <label className="label">Monthly VIP Salary (₹)</label>
+                <label className="label">Monthly Rewards (₹)</label>
                 <input
                   type="number"
                   min="0"
@@ -692,8 +956,12 @@ export default function VipLevels() {
               >
                 Cancel
               </button>
-              <button type="submit" className="btn font-bold">
-                Save VIP Rules
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="btn font-bold cursor-pointer disabled:opacity-60"
+              >
+                {isSaving ? 'Saving...' : 'Save VIP Rules'}
               </button>
             </div>
           </form>
@@ -889,6 +1157,125 @@ export default function VipLevels() {
           </div>
         </Modal>
       )}
+
+      {/* ================= MODAL: ADD NEW VIP TIER ================= */}
+      {addTierModal && (
+        <Modal title="Create New VIP Level Slab" onClose={() => setAddTierModal(false)}>
+          <form onSubmit={handleAddTier} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Name</label>
+                <input
+                  className="input font-bold"
+                  placeholder="e.g. VIP 11"
+                  value={newTier.name}
+                  onChange={(e) => setNewTier({ ...newTier, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="label">VIP Title / Rank</label>
+                <input
+                  className="input"
+                  placeholder="e.g. Grand Celestial Titan"
+                  value={newTier.title}
+                  onChange={(e) => setNewTier({ ...newTier, title: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Betting Range (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                className="input font-bold"
+                placeholder="e.g. 15000000000"
+                value={newTier.range}
+                onChange={(e) => setNewTier({ ...newTier, range: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Level Up Rewards (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  className="input font-bold text-emerald-600"
+                  placeholder="e.g. 3000000"
+                  value={newTier.up}
+                  onChange={(e) => setNewTier({ ...newTier, up: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="label">Monthly Rewards (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  className="input font-bold text-purple-600"
+                  placeholder="e.g. 1200000"
+                  value={newTier.month}
+                  onChange={(e) => setNewTier({ ...newTier, month: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Daily Cash Rebate %</label>
+                <input
+                  className="input font-bold"
+                  placeholder="e.g. 1.80%"
+                  value={newTier.rebate}
+                  onChange={(e) => setNewTier({ ...newTier, rebate: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="label">Initial Status</label>
+                <select
+                  className="input font-semibold"
+                  value={newTier.status}
+                  onChange={(e) => setNewTier({ ...newTier, status: e.target.value })}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Paused">Paused</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setAddTierModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="btn bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                <Plus size={15} /> {isSaving ? 'Creating...' : 'Create VIP Level'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+
 
       {node}
     </div>
