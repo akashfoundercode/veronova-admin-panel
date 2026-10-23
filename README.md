@@ -16,3 +16,4 @@ wallet balance, recent results, and other players are simulated in the browser; 
 socket connection is used. Aviator mode settings remain available under Games → Aviator Settings.
 # veronova-admin-panel
 # veronova-admin-panel
+# veronova_admin-panel
