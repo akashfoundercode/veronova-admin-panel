@@ -6,11 +6,14 @@ class WingoSocketService {
     this.socket = null
     this.subscribers = new Set()
     this.isConnected = false
+    this.hasReceivedServerPacket = false
     this.lastPacket = {
-      oneMinTimer: 60,
-      threeMinTimer: 180,
-      fiveMinTimer: 300,
-      tenMinTimer: 600,
+      thirtySecTimer: 0,
+      oneMinTimer: 0,
+      twoMinTimer: 0,
+      threeMinTimer: 0,
+      fiveMinTimer: 0,
+      tenMinTimer: 0,
       timerBetTime: 10,
       timerStatus: 1,
       timestamp: Date.now(),
@@ -28,17 +31,22 @@ class WingoSocketService {
 
     try {
       this.socket = io(URL, {
-        transports: ['websocket', 'polling'],
+        // Direct local websocket avoids browser CORS preflight on Socket.IO polling.
+        transports: ['websocket'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: RECONNECT_DELAY || 1000,
         timeout: TIMEOUT || 10000,
-        secure: true,
       })
 
       this.socket.on('connect', () => {
         this.isConnected = true
         console.log(`[WinGo Socket] Connected successfully to ${URL} (Socket ID: ${this.socket.id})`)
+        const eventNames = [EVENT_NAME, ...(SOCKET_CONFIG.WINGO.EVENT_ALIASES || [])]
+        eventNames.forEach((eventName) => {
+          this.socket.emit('join', eventName)
+          this.socket.emit('subscribe', { event: eventName })
+        })
         this.notifySubscribers({
           type: 'CONNECTION_CHANGE',
           connected: true,
@@ -66,15 +74,15 @@ class WingoSocketService {
         })
       })
 
-      // Main WinGo event listener: funplay_wingo
-      this.socket.on(EVENT_NAME, (rawData) => {
-        this.handleEventData(rawData)
+      // Listen to the configured channel and temporary aliases during backend migration.
+      ;[EVENT_NAME, ...(SOCKET_CONFIG.WINGO.EVENT_ALIASES || [])].forEach((eventName) => {
+        this.socket.on(eventName, (rawData) => {
+          console.info(`[WinGo Socket] Received ${eventName}:`, rawData)
+          this.handleEventData(rawData)
+        })
       })
 
       // Generic fallbacks in case server sends on generic names
-      this.socket.on('wingo', (rawData) => {
-        this.handleEventData(rawData)
-      })
       this.socket.on('message', (rawData) => {
         this.handleEventData(rawData)
       })
@@ -98,31 +106,36 @@ class WingoSocketService {
 
     if (!payload || typeof payload !== 'object') return
 
-    // Extract exact timers from funplay_wingo packet
-    const oneMin = payload.oneMinTimer !== undefined ? Number(payload.oneMinTimer) : (this.lastPacket.oneMinTimer ?? 60)
-    const thirtySec = payload.thirtySecTimer !== undefined
-      ? Number(payload.thirtySecTimer)
-      : payload.sec30Timer !== undefined
-      ? Number(payload.sec30Timer)
-      : (oneMin % 30 || 30)
+    const nestedPacket = [payload.data, payload.payload, payload.result].find(
+      (value) => value && typeof value === 'object' && !Array.isArray(value)
+    )
+    const packet = nestedPacket ? { ...payload, ...nestedPacket } : payload
 
-    const twoMin = payload.twoMinTimer !== undefined
-      ? Number(payload.twoMinTimer)
-      : (this.lastPacket.twoMinTimer && this.lastPacket.twoMinTimer > 0 ? this.lastPacket.twoMinTimer : 120)
+    const readTimer = (keys, fallback) => {
+      for (const key of keys) {
+        if (packet[key] !== undefined && Number.isFinite(Number(packet[key]))) return Number(packet[key])
+      }
+      return fallback
+    }
+    const oneMin = readTimer(['oneMinTimer', 'one_min_timer', 'timer1m', 'timer_1m'], this.lastPacket.oneMinTimer ?? 60)
+    const thirtySec = readTimer(['thirtySecTimer', 'thirty_sec_timer', 'sec30Timer', 'sec30_timer', 'timer30s', 'timer_30s'], null)
+    const resolvedThirtySec = thirtySec !== null ? thirtySec : (oneMin % 30)
+    const twoMin = readTimer(['twoMinTimer', 'two_min_timer', 'timer2m', 'timer_2m'], this.lastPacket.twoMinTimer ?? 120)
 
     const normalized = {
-      thirtySecTimer: Math.max(0, thirtySec),
+      thirtySecTimer: Math.max(0, resolvedThirtySec),
       oneMinTimer: Math.max(0, oneMin),
       twoMinTimer: Math.max(0, twoMin),
-      threeMinTimer: payload.threeMinTimer !== undefined ? Number(payload.threeMinTimer) : (this.lastPacket.threeMinTimer ?? 180),
-      fiveMinTimer: payload.fiveMinTimer !== undefined ? Number(payload.fiveMinTimer) : (this.lastPacket.fiveMinTimer ?? 300),
-      tenMinTimer: payload.tenMinTimer !== undefined ? Number(payload.tenMinTimer) : (this.lastPacket.tenMinTimer ?? 600),
-      timerBetTime: payload.timerBetTime !== undefined ? Number(payload.timerBetTime) : (this.lastPacket.timerBetTime ?? 5),
-      timerStatus: payload.timerStatus !== undefined ? Number(payload.timerStatus) : 1,
-      raw: payload,
+      threeMinTimer: Math.max(0, readTimer(['threeMinTimer', 'three_min_timer', 'timer3m', 'timer_3m'], this.lastPacket.threeMinTimer ?? 180)),
+      fiveMinTimer: Math.max(0, readTimer(['fiveMinTimer', 'five_min_timer', 'timer5m', 'timer_5m'], this.lastPacket.fiveMinTimer ?? 300)),
+      tenMinTimer: Math.max(0, readTimer(['tenMinTimer', 'ten_min_timer', 'timer10m', 'timer_10m'], this.lastPacket.tenMinTimer ?? 600)),
+      timerBetTime: Math.max(0, readTimer(['timerBetTime', 'timer_bet_time', 'betTimer'], this.lastPacket.timerBetTime ?? 5)),
+      timerStatus: readTimer(['timerStatus', 'timer_status', 'status'], 1),
+      raw: packet,
       timestamp: Date.now(),
     }
 
+    this.hasReceivedServerPacket = true
     this.lastPacket = normalized
 
     this.notifySubscribers({
@@ -135,15 +148,16 @@ class WingoSocketService {
   startLocalTick() {
     if (this.localTickTimer) clearInterval(this.localTickTimer)
     this.localTickTimer = setInterval(() => {
-      if (!this.lastPacket) return
+      if (!this.lastPacket || !this.hasReceivedServerPacket) return
       // Only decrement if last socket packet was received more than 1 second ago
       const timeSincePacket = Date.now() - (this.lastPacket.timestamp || 0)
       if (timeSincePacket >= 1000) {
         this.lastPacket = {
           ...this.lastPacket,
-          thirtySecTimer: this.lastPacket.thirtySecTimer > 0 ? this.lastPacket.thirtySecTimer - 1 : 30,
+          // Countdown display may smooth server updates, but never invent a new round.
+          thirtySecTimer: Math.max(0, this.lastPacket.thirtySecTimer - 1),
           oneMinTimer: Math.max(0, this.lastPacket.oneMinTimer - 1),
-          twoMinTimer: this.lastPacket.twoMinTimer > 0 ? this.lastPacket.twoMinTimer - 1 : 120,
+          twoMinTimer: Math.max(0, this.lastPacket.twoMinTimer - 1),
           threeMinTimer: Math.max(0, this.lastPacket.threeMinTimer - 1),
           fiveMinTimer: Math.max(0, this.lastPacket.fiveMinTimer - 1),
           tenMinTimer: Math.max(0, this.lastPacket.tenMinTimer - 1),
@@ -158,7 +172,7 @@ class WingoSocketService {
 
   subscribe(callback) {
     this.subscribers.add(callback)
-    if (this.lastPacket) {
+    if (this.hasReceivedServerPacket) {
       try {
         callback({
           type: 'WINGO_PACKET',

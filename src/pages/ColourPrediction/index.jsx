@@ -3,7 +3,7 @@ import {
   Palette, Timer, Zap, Clock, Trophy, Users, Coins, BarChart3, User,
   Radio, RefreshCw, CheckCircle2, ShieldCheck, Flame, Lock, Unlock,
   Volume2, VolumeX, Sliders, Sparkles, TrendingUp, AlertTriangle,
-  History, ArrowUpRight, Copy, Check, ChevronRight, Award
+  History, ArrowUpRight, Copy, Check, ChevronRight, Award, Crown
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, money, useToast, Modal } from '@/components/ui'
@@ -12,18 +12,16 @@ import { SOCKET_CONFIG } from '@/constants/socketConfig'
 import { API_ENDPOINTS, WINGO_API } from '@/constants/api'
 import { apiRequest } from '@/utils/apiClient'
 
-// 5 WinGo Modes mapped to exact backend game_id:
+// 4 WinGo Modes mapped to exact backend game_id:
 // 30 sec -> game_id: 1
 // 1 min  -> game_id: 2
-// 2 min  -> game_id: 3
-// 3 min  -> game_id: 5
-// 10 min -> game_id: 4
+// 3 min  -> game_id: 3
+// 5 min  -> game_id: 4
 const WINGO_MODES = [
   { id: '30sec', game_id: 1, label: 'WinGo 30 Sec', key: 'thirtySecTimer', totalSec: 30, icon: Zap, theme: 'from-rose-600 via-pink-600 to-purple-700', neon: 'border-rose-500/40 text-rose-400' },
   { id: '1min', game_id: 2, label: 'WinGo 1 Min', key: 'oneMinTimer', totalSec: 60, icon: Zap, theme: 'from-blue-600 via-indigo-600 to-purple-700', neon: 'border-blue-500/40 text-blue-400' },
-  { id: '2min', game_id: 3, label: 'WinGo 2 Min', key: 'twoMinTimer', totalSec: 120, icon: Clock, theme: 'from-emerald-600 via-teal-600 to-cyan-700', neon: 'border-emerald-500/40 text-emerald-400' },
-  { id: '3min', game_id: 5, label: 'WinGo 3 Min', key: 'threeMinTimer', totalSec: 180, icon: Clock, theme: 'from-amber-600 via-orange-600 to-rose-700', neon: 'border-amber-500/40 text-amber-400' },
-  { id: '10min', game_id: 4, label: 'WinGo 10 Min', key: 'tenMinTimer', totalSec: 600, icon: Clock, theme: 'from-purple-600 via-violet-600 to-pink-700', neon: 'border-purple-500/40 text-purple-400' },
+  { id: '3min', game_id: 3, label: 'WinGo 3 Min', key: 'threeMinTimer', totalSec: 180, icon: Clock, theme: 'from-amber-600 via-orange-600 to-rose-700', neon: 'border-amber-500/40 text-amber-400' },
+  { id: '5min', game_id: 4, label: 'WinGo 5 Min', key: 'fiveMinTimer', totalSec: 300, icon: Clock, theme: 'from-emerald-600 via-teal-600 to-cyan-700', neon: 'border-emerald-500/40 text-emerald-400' },
 ]
 
 // Ball Colors: 0 = Red+Violet, 5 = Green+Violet, Odd = Green, Even = Red
@@ -33,6 +31,45 @@ const getBallColorInfo = (num) => {
   if (n === 5) return { bg: 'bg-gradient-to-br from-emerald-600 to-purple-600', text: 'Green + Violet', type: 'special', isBig: true }
   if (n % 2 === 1) return { bg: 'bg-emerald-600', text: 'Green', type: 'green', isBig: n >= 5 }
   return { bg: 'bg-rose-600', text: 'Red', type: 'red', isBig: n >= 5 }
+}
+
+const getBetAmount = (bet) => {
+  const raw = bet?.amount ?? bet?.bet_amount ?? bet?.money ?? bet?.stake ?? bet?.total_amount ?? bet?.betAmount
+  const amount = Number(String(raw ?? 0).replace(/[₹,\s]/g, ''))
+  return Number.isFinite(amount) ? amount : 0
+}
+
+const getBetSelection = (bet) => {
+  const raw = bet?.number ?? bet?.num ?? bet?.bet_number ?? bet?.betNumber ?? bet?.pick ??
+    bet?.bet_type ?? bet?.betType ?? bet?.chosen ?? bet?.select ?? bet?.selection ?? bet?.bet_on ?? bet?.bet
+  const num = Number(raw)
+  if (Number.isInteger(num)) {
+    if (num >= 0 && num <= 9) return { kind: 'number', value: num }
+    if (num === 10) return { kind: 'choice', value: 'green' }
+    if (num === 20) return { kind: 'choice', value: 'violet' }
+    if (num === 30) return { kind: 'choice', value: 'red' }
+    if (num === 40) return { kind: 'choice', value: 'big' }
+    if (num === 50) return { kind: 'choice', value: 'small' }
+  }
+  const value = String(raw ?? '').trim().toLowerCase()
+  if (/^(green|red|violet|big|small)$/.test(value)) return { kind: 'choice', value }
+  const numberMatch = value.match(/(?:ball\s*)?([0-9]+)/)
+  if (numberMatch) {
+    const val = Number(numberMatch[1])
+    if (val >= 0 && val <= 9) return { kind: 'number', value: val }
+    if (val === 10) return { kind: 'choice', value: 'green' }
+    if (val === 20) return { kind: 'choice', value: 'violet' }
+    if (val === 30) return { kind: 'choice', value: 'red' }
+    if (val === 40) return { kind: 'choice', value: 'big' }
+    if (val === 50) return { kind: 'choice', value: 'small' }
+  }
+  return { kind: 'unknown', value }
+}
+
+const extractBetRows = (response) => {
+  const candidates = [response, response?.bets, response?.data, response?.data?.bets, response?.data?.data,
+    response?.result, response?.result?.bets, response?.rows, response?.data?.rows]
+  return candidates.find(Array.isArray) || null
 }
 
 // Fallback Seeds in case backend is offline
@@ -104,11 +141,12 @@ export default function ColourPrediction() {
     numberAmounts: Array(10).fill(0),
   })
 
-  // Admin Result Override Modal State
+  // Admin Result Override Modal & Direct Set Outcome State
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
   const [targetBallNumber, setTargetBallNumber] = useState(7)
   const [targetBallColor, setTargetBallColor] = useState('Green')
   const [isSubmittingOverride, setIsSubmittingOverride] = useState(false)
+  const [adminSetWinner, setAdminSetWinner] = useState(null)
 
   const prevSecondRef = useRef(null)
   const lastFetchedPeriodRef = useRef(null)
@@ -131,66 +169,119 @@ export default function ColourPrediction() {
     return `${y}${m}${d}${modeOffset + Number(periodSequence)}`
   }, [activeModeIndex])
 
-  // Real Period Number from backend betlogs (GET /fetch/{gameid} line 171) or fallback
+  // Real Period Number from backend betlogs or fallback
   const currentPeriod = backendPeriodNo || fallbackPeriod
+
+  // Reset function to clear pool amounts & bets when a round finishes
+  const resetCurrentRoundPools = useCallback(() => {
+    setPoolTotals({
+      green: 0,
+      violet: 0,
+      red: 0,
+      small: 0,
+      big: 0,
+      numberAmounts: Array(10).fill(0),
+    })
+    setBetsList([])
+    setAdminSetWinner(null)
+  }, [])
 
   // --- API Fetchers with integer game_id ---
   const activeGameId = Number(currentMode.game_id)
 
-  // 1. Fetch Backend Bets & Live Pools from GET /fetch/{gameid} (ColourPredictionController.php:171)
+  // 1. Fetch Backend Bets & Live Pools from /api/admin/wingo/live/:gameid & fallback /fetch/{gameid}
   const fetchBackendBets = useCallback(async () => {
     try {
       const gId = Number(currentMode.game_id)
       const endpoints = [
+        `/api/admin/wingo/live/${gId}`,
+        `/admin/wingo/live/${gId}`,
+        `/bets?game_id=${gId}`,
+        `/api/bets?game_id=${gId}`,
         `/fetch/${gId}`,
         `/api/fetch/${gId}`,
-        `${API_ENDPOINTS.BACKEND_BASE_URL}/fetch/${gId}`,
+        API_ENDPOINTS.WINGO_FETCH(gId),
       ]
       let json = null
       for (const ep of endpoints) {
+        if (!ep) continue
         try {
           json = await apiRequest(ep, { method: 'GET' })
-          if (json) break
+          if (json && (json.data || json.bets || json.pools || Array.isArray(json))) break
         } catch {}
       }
 
-      const bets = json?.bets || (Array.isArray(json) ? json : null)
-      if (bets && Array.isArray(bets)) {
-        if (bets.length > 0) {
-          setBetsList(bets)
-          // Page pehli row ka games_no period ke roop me dikhata hai
-          const gameNo = bets[0].games_no ?? bets[0].period ?? bets[0].game_no
-          if (gameNo) setBackendPeriodNo(String(gameNo))
-
-          let green = 0
-          let violet = 0
-          let red = 0
-          let small = 0
-          let big = 0
-          const nums = Array(10).fill(0)
-
-          bets.forEach((bet) => {
-            const num = parseInt(bet.number)
-            const amt = parseFloat(bet.amount) || 0
-            if (!isNaN(num) && num >= 0 && num <= 9) {
-              nums[num] += amt
+      // 1. Structured live snapshot from /api/admin/wingo/live/:gameid
+      if (json && (json.data?.pools || json.pools)) {
+        const liveData = json.data || json
+        if (liveData.games_no) {
+          setBackendPeriodNo(String(liveData.games_no))
+        }
+        const pools = liveData.pools || {}
+        const numAmounts = Array(10).fill(0)
+        if (Array.isArray(pools.numbers)) {
+          pools.numbers.forEach((item) => {
+            const n = Number(item.number)
+            if (n >= 0 && n <= 9) {
+              numAmounts[n] = Number(item.amount ?? 0)
             }
-            if ([1, 3, 7, 9, 5].includes(num)) green += amt
-            if ([0, 5].includes(num)) violet += amt
-            if ([0, 2, 4, 6, 8].includes(num)) red += amt
-            if (num >= 0 && num <= 4) small += amt
-            if (num >= 5 && num <= 9) big += amt
-          })
-
-          setPoolTotals({
-            green,
-            violet,
-            red,
-            small,
-            big,
-            numberAmounts: nums,
           })
         }
+        setPoolTotals({
+          green: Number(pools.color?.green ?? 0),
+          violet: Number(pools.color?.violet ?? 0),
+          red: Number(pools.color?.red ?? 0),
+          small: Number(pools.size?.small ?? 0),
+          big: Number(pools.size?.big ?? 0),
+          numberAmounts: numAmounts,
+        })
+        const activeBets = Array.isArray(liveData.active_bets)
+          ? liveData.active_bets
+          : Array.isArray(liveData.data)
+            ? liveData.data
+            : []
+        setBetsList(activeBets)
+        return
+      }
+
+      // 2. Fallback for /bets or /fetch/{gameid} array
+      const bets = extractBetRows(json)
+      if (bets && Array.isArray(bets)) {
+        setBetsList(bets)
+        const firstCurrentBet = bets.find((bet) => bet.games_no || bet.period || bet.game_no)
+        const gameNo = firstCurrentBet?.games_no ?? firstCurrentBet?.period ?? firstCurrentBet?.game_no
+        if (gameNo) setBackendPeriodNo(String(gameNo))
+
+        let green = 0
+        let violet = 0
+        let red = 0
+        let small = 0
+        let big = 0
+        const nums = Array(10).fill(0)
+
+        bets.forEach((bet) => {
+          const selection = getBetSelection(bet)
+          const amt = getBetAmount(bet)
+          if (selection.kind === 'number') {
+            const num = selection.value
+            if (num >= 0 && num <= 9) {
+              nums[num] += amt
+              if ([1, 3, 7, 9].includes(num)) green += amt
+              if ([0, 5].includes(num)) violet += amt
+              if ([2, 4, 6, 8].includes(num)) red += amt
+              if (num <= 4) small += amt
+              if (num >= 5) big += amt
+            }
+          } else if (selection.kind === 'choice') {
+            if (selection.value === 'green') green += amt
+            if (selection.value === 'violet') violet += amt
+            if (selection.value === 'red') red += amt
+            if (selection.value === 'small') small += amt
+            if (selection.value === 'big') big += amt
+          }
+        })
+
+        setPoolTotals({ green, violet, red, small, big, numberAmounts: nums })
       }
     } catch (err) {
       console.warn('[WinGo /fetch/{gameid}] Fetch error:', err)
@@ -204,7 +295,7 @@ export default function ColourPrediction() {
       const endpoints = [
         WINGO_API.wingoResults ? `${WINGO_API.wingoResults}${q}` : null,
         `/results${q}`,
-        `${API_ENDPOINTS.BACKEND_BASE_URL}/results${q}`,
+        `${API_ENDPOINTS.WINGO_RESULTS_PROXY}${q}`,
         API_ENDPOINTS.WINGO_RESULTS_PROXY ? `${API_ENDPOINTS.WINGO_RESULTS_PROXY}${q}` : null,
         `/api/results${q}`,
       ]
@@ -234,7 +325,7 @@ export default function ColourPrediction() {
       const endpoints = [
         WINGO_API.wingoLastFiveResult ? `${WINGO_API.wingoLastFiveResult}${q}` : null,
         `/last_five_result${q}`,
-        `${API_ENDPOINTS.BACKEND_BASE_URL}/last_five_result${q}`,
+        `${API_ENDPOINTS.WINGO_LAST_FIVE_RESULT_PROXY}${q}`,
         API_ENDPOINTS.WINGO_LAST_FIVE_RESULT_PROXY ? `${API_ENDPOINTS.WINGO_LAST_FIVE_RESULT_PROXY}${q}` : null,
         `/api/last_five_result${q}`,
       ]
@@ -258,11 +349,13 @@ export default function ColourPrediction() {
   // 4. Fetch Immediate Last Result (/last_result?game_id=...)
   const fetchLastResult = useCallback(async () => {
     try {
+      const gId = Number(currentMode.game_id)
       const q = `?game_id=${Number(currentMode.game_id)}`
       const endpoints = [
+        WINGO_API.wingoGetResult ? WINGO_API.wingoGetResult(gId) : null,
         WINGO_API.wingoLastResult ? `${WINGO_API.wingoLastResult}${q}` : null,
         `/last_result${q}`,
-        `${API_ENDPOINTS.BACKEND_BASE_URL}/last_result${q}`,
+        `${API_ENDPOINTS.WINGO_LAST_RESULT_PROXY}${q}`,
         API_ENDPOINTS.WINGO_LAST_RESULT_PROXY ? `${API_ENDPOINTS.WINGO_LAST_RESULT_PROXY}${q}` : null,
         `/api/last_result${q}`,
       ]
@@ -290,7 +383,7 @@ export default function ColourPrediction() {
       const endpoints = [
         WINGO_API.wingoWinAmount ? `${WINGO_API.wingoWinAmount}${q}` : null,
         `/win-amount${q}`,
-        `${API_ENDPOINTS.BACKEND_BASE_URL}/win-amount${q}`,
+        `${API_ENDPOINTS.WINGO_WIN_AMOUNT_PROXY}${q}`,
         API_ENDPOINTS.WINGO_WIN_AMOUNT_PROXY ? `${API_ENDPOINTS.WINGO_WIN_AMOUNT_PROXY}${q}` : null,
         `/api/win-amount${q}`,
       ]
@@ -322,9 +415,9 @@ export default function ColourPrediction() {
       const gId = Number(currentMode.game_id)
       const endpoints = [
         `/api/bet_history`,
-        `${API_ENDPOINTS.BACKEND_BASE_URL}/api/bet_history`,
+        '/api/bet_history',
         `/bet_history`,
-        `${API_ENDPOINTS.BACKEND_BASE_URL}/bet_history`,
+        `${API_ENDPOINTS.WINGO_BET_HISTORY_PROXY}`,
       ]
       let json = null
       for (const ep of endpoints) {
@@ -388,7 +481,46 @@ export default function ColourPrediction() {
     }
   }, [])
 
-  // Audio & Countdown Effects for Last Seconds (5, 4, 3, 2, 1)
+  // 7. Fetch Admin Set Results (/fetch_admin_set_Results/:id)
+  const fetchAdminSetResults = useCallback(async () => {
+    try {
+      const gId = Number(currentMode.game_id)
+      const endpoints = [
+        `/api/fetch_admin_set_Results/${gId}`,
+        `/fetch_admin_set_Results/${gId}`,
+        WINGO_API.wingoAdminSetResultUrl ? WINGO_API.wingoAdminSetResultUrl(gId) : null,
+        `/api/fetchhistory/${gId}`,
+        `/fetchhistory/${gId}`,
+      ]
+      let json = null
+      for (const ep of endpoints) {
+        if (!ep) continue
+        try {
+          json = await apiRequest(ep, { method: 'GET' })
+          if (json) break
+        } catch {}
+      }
+      const rows = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : json?.bets || []
+      if (Array.isArray(rows) && rows.length > 0) {
+        const match = rows.find((r) => String(r.gamesno || r.period || r.game_no) === String(currentPeriod))
+        if (match) {
+          const num = Number(match.number ?? match.card_number ?? 0)
+          const info = getBallColorInfo(num)
+          setAdminSetWinner({
+            number: num,
+            color: info.text,
+            size: num >= 5 ? 'Big' : 'Small',
+            period: currentPeriod,
+            label: `Ball #${num} (${info.text})`,
+          })
+        }
+      }
+    } catch (err) {
+      console.warn('[WinGo API] Admin set results fetch error:', err)
+    }
+  }, [currentMode.game_id, currentPeriod])
+
+  // Audio & Countdown Effects for Last Seconds (5, 4, 3, 2, 1) & Round Reset
   useEffect(() => {
     if (prevSecondRef.current !== currentSeconds) {
       if (soundEnabled) {
@@ -401,21 +533,25 @@ export default function ColourPrediction() {
         }
       }
 
-      // When round resets (currentSeconds is at totalSec or reaches 0), auto refresh APIs
-      if (currentSeconds === 0 && lastFetchedPeriodRef.current !== currentPeriod) {
-        lastFetchedPeriodRef.current = currentPeriod
-        setTimeout(() => {
-          fetchBackendBets()
-          fetchResults()
-          fetchLastFive()
-          fetchLastResult()
-          fetchWinAmount()
-        }, 1200)
+      // When round resets (currentSeconds transitions from > 0 to 0), refresh for the next round
+      if (prevSecondRef.current !== null && prevSecondRef.current > 0 && currentSeconds === 0) {
+        resetCurrentRoundPools()
+        if (lastFetchedPeriodRef.current !== currentPeriod) {
+          lastFetchedPeriodRef.current = currentPeriod
+          setTimeout(() => {
+            fetchBackendBets()
+            fetchResults()
+            fetchLastFive()
+            fetchLastResult()
+            fetchWinAmount()
+            fetchAdminSetResults()
+          }, 1200)
+        }
       }
 
       prevSecondRef.current = currentSeconds
     }
-  }, [currentSeconds, soundEnabled, isLastFiveSeconds, currentPeriod, fetchResults, fetchLastFive, fetchLastResult, fetchWinAmount, fetchBackendBets])
+  }, [currentSeconds, soundEnabled, isLastFiveSeconds, currentPeriod, resetCurrentRoundPools, fetchResults, fetchLastFive, fetchLastResult, fetchWinAmount, fetchBackendBets, fetchAdminSetResults])
 
   // Copy Period ID
   const handleCopyPeriod = () => {
@@ -427,48 +563,91 @@ export default function ColourPrediction() {
     }
   }
 
-  // 5-second polling for GET /fetch/{gameid} (ColourPredictionController.php:171)
+  // 5-second polling for live pools and bets
   useEffect(() => {
     fetchBackendBets()
+    fetchAdminSetResults()
     const pollInterval = setInterval(() => {
       fetchBackendBets()
     }, 5000)
     return () => clearInterval(pollInterval)
-  }, [fetchBackendBets])
+  }, [fetchBackendBets, fetchAdminSetResults])
 
-  // Submit Admin Result Override (/colour_prediction-store & /fetch_admin_set_Results/:id)
-  const handleAdminSetResult = async () => {
+  // 1-Click Winner Selection for Colors, Sizes, and Numbers
+  const handleDirectSetOutcome = async (type, val) => {
+    let chosenNum = 0
+    let chosenColor = 'Green'
+
+    if (type === 'number') {
+      chosenNum = Number(val)
+      const info = getBallColorInfo(chosenNum)
+      chosenColor = info.text
+    } else if (type === 'color') {
+      const colorKey = String(val).toLowerCase()
+      if (colorKey === 'green') {
+        const candidates = [1, 3, 7, 9]
+        candidates.sort((a, b) => (poolTotals.numberAmounts[a] || 0) - (poolTotals.numberAmounts[b] || 0))
+        chosenNum = candidates[0]
+        chosenColor = 'Green'
+      } else if (colorKey === 'red') {
+        const candidates = [2, 4, 6, 8]
+        candidates.sort((a, b) => (poolTotals.numberAmounts[a] || 0) - (poolTotals.numberAmounts[b] || 0))
+        chosenNum = candidates[0]
+        chosenColor = 'Red'
+      } else if (colorKey === 'violet') {
+        const candidates = [0, 5]
+        candidates.sort((a, b) => (poolTotals.numberAmounts[a] || 0) - (poolTotals.numberAmounts[b] || 0))
+        chosenNum = candidates[0]
+        chosenColor = 'Violet'
+      }
+    } else if (type === 'size') {
+      const sizeKey = String(val).toLowerCase()
+      if (sizeKey === 'small') {
+        const candidates = [0, 1, 2, 3, 4]
+        candidates.sort((a, b) => (poolTotals.numberAmounts[a] || 0) - (poolTotals.numberAmounts[b] || 0))
+        chosenNum = candidates[0]
+      } else {
+        const candidates = [5, 6, 7, 8, 9]
+        candidates.sort((a, b) => (poolTotals.numberAmounts[a] || 0) - (poolTotals.numberAmounts[b] || 0))
+        chosenNum = candidates[0]
+      }
+      const info = getBallColorInfo(chosenNum)
+      chosenColor = info.text
+    }
+
     setIsSubmittingOverride(true)
     try {
       const targetId = currentPeriod
       const targetGameId = Number(currentMode.game_id)
-      const targetNum = Number(targetBallNumber)
-
       const payload = {
-        game_id: targetGameId, // Integer required by validation
-        gameId: targetGameId,
-        game_no: targetId,     // Current period
+        gameid: targetGameId,
+        game_id: targetGameId,
+        period_num: targetId,
         gamesno: targetId,
+        game_no: targetId,
         period_id: targetId,
-        number: targetNum,     // 0-9 result
-        result_number: targetNum,
-        result_colour: targetBallColor,
-        colour: targetBallColor,
-        is_big: targetNum >= 5,
+        card_number: chosenNum,
+        number: chosenNum,
+        result_number: chosenNum,
+        result_colour: chosenColor,
+        colour: chosenColor,
+        is_big: chosenNum >= 5,
         mode: currentMode.id,
       }
 
       const endpoints = [
+        '/api/auto_wingo_result_insert',
+        '/auto_wingo_result_insert',
         '/colour_prediction-store',
-        '/future-result-store',
-        `/api/colour_prediction-store`,
+        '/api/colour_prediction-store',
+        '/colour_prediction_store',
+        '/api/colour_prediction_store',
         WINGO_API.wingoAdminSetResultUrl ? WINGO_API.wingoAdminSetResultUrl(targetGameId) : null,
-        `/fetch_admin_set_Results/${targetGameId}`,
-        `/api/fetch_admin_set_Results/${targetGameId}`,
-        `${API_ENDPOINTS.BACKEND_BASE_URL}/colour_prediction-store`,
+        API_ENDPOINTS.WINGO_STORE_RESULT_PROXY,
       ]
 
       let success = false
+      let lastErr = null
       for (const ep of endpoints) {
         if (!ep) continue
         try {
@@ -480,13 +659,107 @@ export default function ColourPrediction() {
             success = true
             break
           }
-        } catch {}
+        } catch (err) {
+          lastErr = err
+        }
       }
 
+      if (!success) {
+        throw new Error(lastErr?.message || 'Failed to submit admin winner result.')
+      }
+
+      const outcomeLabel = type === 'color' 
+        ? `${String(val).toUpperCase()} (Ball #${chosenNum})` 
+        : type === 'size' 
+          ? `${String(val).toUpperCase()} (Ball #${chosenNum})` 
+          : `Ball #${chosenNum} (${chosenColor})`
+
+      setAdminSetWinner({
+        number: chosenNum,
+        color: chosenColor,
+        size: chosenNum >= 5 ? 'Big' : 'Small',
+        period: targetId,
+        label: outcomeLabel,
+      })
+      toast(`✅ Winning Result set to ${outcomeLabel} for Round #${targetId}!`, 'success')
+      fetchBackendBets()
+      fetchAdminSetResults()
+    } catch (err) {
+      toast(`Failed to set admin result: ${err.message}`, 'error')
+    } finally {
+      setIsSubmittingOverride(false)
+    }
+  }
+
+  // Submit Admin Result Override Modal (/auto_wingo_result_insert & /colour_prediction-store)
+  const handleAdminSetResult = async () => {
+    setIsSubmittingOverride(true)
+    try {
+      const targetId = currentPeriod
+      const targetGameId = Number(currentMode.game_id)
+      const targetNum = Number(targetBallNumber)
+
+      const payload = {
+        gameid: targetGameId,
+        game_id: targetGameId,
+        period_num: targetId,
+        gamesno: targetId,
+        game_no: targetId,
+        period_id: targetId,
+        card_number: targetNum,
+        number: targetNum,
+        result_number: targetNum,
+        result_colour: targetBallColor,
+        colour: targetBallColor,
+        is_big: targetNum >= 5,
+        mode: currentMode.id,
+      }
+
+      const endpoints = [
+        '/api/auto_wingo_result_insert',
+        '/auto_wingo_result_insert',
+        '/colour_prediction-store',
+        '/api/colour_prediction-store',
+        '/colour_prediction_store',
+        '/api/colour_prediction_store',
+        WINGO_API.wingoAdminSetResultUrl ? WINGO_API.wingoAdminSetResultUrl(targetGameId) : null,
+        API_ENDPOINTS.WINGO_STORE_RESULT_PROXY,
+      ]
+
+      let success = false
+      let lastErr = null
+      for (const ep of endpoints) {
+        if (!ep) continue
+        try {
+          const res = await apiRequest(ep, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          })
+          if (res) {
+            success = true
+            break
+          }
+        } catch (err) {
+          lastErr = err
+        }
+      }
+
+      if (!success) {
+        throw new Error(lastErr?.message || 'Failed to submit admin winner result to server.')
+      }
+
+      setAdminSetWinner({
+        number: targetNum,
+        color: targetBallColor,
+        size: targetNum >= 5 ? 'Big' : 'Small',
+        period: targetId,
+        label: `Ball #${targetNum} (${targetBallColor})`,
+      })
       toast(`Winner Ball ${targetNum} (${targetBallColor}) submitted successfully for Period #${targetId}`, 'success')
       setIsAdminModalOpen(false)
       fetchBackendBets()
       fetchResults()
+      fetchAdminSetResults()
     } catch (err) {
       toast(`Failed to set admin result: ${err.message}`, 'error')
     } finally {
@@ -581,6 +854,21 @@ export default function ColourPrediction() {
       render: (r) => {
         const num = r.number !== undefined && r.number !== null ? parseInt(r.number) : null
         if (num !== null && !isNaN(num)) {
+          if (num === 10) {
+            return <span className="rounded-md px-2.5 py-0.5 font-bold text-xs inline-flex items-center gap-1 bg-emerald-600 text-white shadow-xs">GREEN (2x)</span>
+          }
+          if (num === 20) {
+            return <span className="rounded-md px-2.5 py-0.5 font-bold text-xs inline-flex items-center gap-1 bg-purple-600 text-white shadow-xs">VIOLET (4.5x)</span>
+          }
+          if (num === 30) {
+            return <span className="rounded-md px-2.5 py-0.5 font-bold text-xs inline-flex items-center gap-1 bg-rose-600 text-white shadow-xs">RED (2x)</span>
+          }
+          if (num === 40) {
+            return <span className="rounded-md px-2.5 py-0.5 font-bold text-xs inline-flex items-center gap-1 bg-amber-600 text-white shadow-xs">BIG (5-9)</span>
+          }
+          if (num === 50) {
+            return <span className="rounded-md px-2.5 py-0.5 font-bold text-xs inline-flex items-center gap-1 bg-blue-600 text-white shadow-xs">SMALL (0-4)</span>
+          }
           const info = getBallColorInfo(num)
           return (
             <span className={`rounded-md px-2.5 py-0.5 font-bold text-xs inline-flex items-center gap-1.5 text-white ${info.bg}`}>
@@ -706,8 +994,8 @@ export default function ColourPrediction() {
         </div>
       </div>
 
-      {/* 5 Live Socket Room Timers Bar (30 Sec, 1 Min, 2 Min, 3 Min, 10 Min) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* 4 Live Socket Room Timers Bar (30 Sec, 1 Min, 3 Min, 5 Min) */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {WINGO_MODES.map((mode, i) => {
           const modeSecs = Math.max(0, Number(wingoData?.[mode.key] ?? 0))
           const isSelected = activeModeIndex === i
@@ -959,41 +1247,159 @@ export default function ColourPrediction() {
         </div>
       </div>
 
-      {/* Winning Bet Pools & Colors Overview */}
+      {/* Winning Bet Pools & Colors Overview with 1-Click Winner Selection */}
       <div className="card p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 font-extrabold tracking-wide text-slate-900 text-sm">
-            <Flame size={18} className="text-amber-500" />
-            LIVE BETTING POOLS (CURRENT ROUND #{currentPeriod})
-          </h3>
-          <span className="text-xs font-bold text-slate-500 font-mono">
-            {betsList.length} Active Bets Placed
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="flex items-center gap-2 font-extrabold tracking-wide text-slate-900 text-sm">
+              <Flame size={18} className="text-amber-500" />
+              LIVE BETTING POOLS (CURRENT ROUND #{currentPeriod})
+            </h3>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              1-Click Winner Control: Click Green, Violet, Red, Big, Small, or any Ball 0-9 to set next winner.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-600 font-mono bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+              {betsList.length} Active Bets
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setTargetBallNumber(7)
+                setTargetBallColor('Green')
+                setIsAdminModalOpen(true)
+              }}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition flex items-center gap-1"
+            >
+              <Sliders size={12} /> Custom Modal
+            </button>
+          </div>
         </div>
 
-        {/* 3 Main Colors */}
-        <div className="grid grid-cols-3 gap-3 text-center font-black text-white">
-          <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 p-3.5 shadow-md">
-            <div className="text-xs uppercase tracking-wider opacity-90">GREEN</div>
-            <div className="text-xl sm:text-2xl font-mono mt-1">
+        {/* Guaranteed Winner Alert Banner */}
+        {adminSetWinner && String(adminSetWinner.period) === String(currentPeriod) && (
+          <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-amber-500/15 via-amber-400/20 to-amber-500/15 border border-amber-400/60 p-3 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white shadow-xs">
+                <Crown size={18} />
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-800">
+                  GUARANTEED WINNER LOCKED FOR ROUND #{currentPeriod}
+                </div>
+                <div className="text-sm font-black font-mono text-amber-950 flex items-center gap-2">
+                  <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black text-white ${getBallColorInfo(adminSetWinner.number).bg}`}>
+                    {adminSetWinner.number}
+                  </span>
+                  <span>{adminSetWinner.label}</span>
+                  <span className="text-xs font-bold text-amber-700">({adminSetWinner.size})</span>
+                </div>
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold text-amber-800 bg-white/80 rounded-md px-2 py-1 border border-amber-300">
+              Click any other card below to override
+            </span>
+          </div>
+        )}
+
+        {/* 3 Main Colors with 1-Click Winner Selection */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center font-black text-white">
+          {/* GREEN */}
+          <button
+            type="button"
+            disabled={isSubmittingOverride}
+            onClick={() => handleDirectSetOutcome('color', 'green')}
+            title="Click to force GREEN as winning result for this round"
+            className={`group relative rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 p-3.5 shadow-md transition hover:scale-102 active:scale-98 cursor-pointer text-left ${
+              adminSetWinner && adminSetWinner.color === 'Green'
+                ? 'ring-4 ring-amber-400 ring-offset-2'
+                : 'hover:ring-2 hover:ring-emerald-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wider opacity-90 flex items-center gap-1.5">
+                GREEN
+                {adminSetWinner && adminSetWinner.color === 'Green' && (
+                  <Crown size={14} className="text-amber-300 animate-bounce" />
+                )}
+              </div>
+              <span className="text-[10px] font-extrabold bg-white/20 px-2 py-0.5 rounded-full group-hover:bg-white/30 transition">
+                SET WINNER ➔
+              </span>
+            </div>
+            <div className="text-xl sm:text-2xl font-mono mt-1 font-black">
               {poolTotals.green > 0 ? money(poolTotals.green) : '₹0.00'}
             </div>
-            <div className="text-[10px] opacity-75 font-normal mt-0.5">Payout 2x (1, 3, 7, 9)</div>
-          </div>
-          <div className="rounded-2xl bg-gradient-to-br from-purple-600 to-violet-700 p-3.5 shadow-md">
-            <div className="text-xs uppercase tracking-wider opacity-90">VIOLET</div>
-            <div className="text-xl sm:text-2xl font-mono mt-1">
+            <div className="flex items-center justify-between text-[10px] opacity-85 font-normal mt-0.5">
+              <span>Payout 2x (1, 3, 7, 9)</span>
+              <span className="font-bold underline text-emerald-100">Click to Win</span>
+            </div>
+          </button>
+
+          {/* VIOLET */}
+          <button
+            type="button"
+            disabled={isSubmittingOverride}
+            onClick={() => handleDirectSetOutcome('color', 'violet')}
+            title="Click to force VIOLET as winning result for this round"
+            className={`group relative rounded-2xl bg-gradient-to-br from-purple-600 to-violet-700 p-3.5 shadow-md transition hover:scale-102 active:scale-98 cursor-pointer text-left ${
+              adminSetWinner && adminSetWinner.color === 'Violet'
+                ? 'ring-4 ring-amber-400 ring-offset-2'
+                : 'hover:ring-2 hover:ring-purple-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wider opacity-90 flex items-center gap-1.5">
+                VIOLET
+                {adminSetWinner && adminSetWinner.color === 'Violet' && (
+                  <Crown size={14} className="text-amber-300 animate-bounce" />
+                )}
+              </div>
+              <span className="text-[10px] font-extrabold bg-white/20 px-2 py-0.5 rounded-full group-hover:bg-white/30 transition">
+                SET WINNER ➔
+              </span>
+            </div>
+            <div className="text-xl sm:text-2xl font-mono mt-1 font-black">
               {poolTotals.violet > 0 ? money(poolTotals.violet) : '₹0.00'}
             </div>
-            <div className="text-[10px] opacity-75 font-normal mt-0.5">Payout 4.5x (0, 5)</div>
-          </div>
-          <div className="rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 p-3.5 shadow-md">
-            <div className="text-xs uppercase tracking-wider opacity-90">RED</div>
-            <div className="text-xl sm:text-2xl font-mono mt-1">
+            <div className="flex items-center justify-between text-[10px] opacity-85 font-normal mt-0.5">
+              <span>Payout 4.5x (0, 5)</span>
+              <span className="font-bold underline text-purple-100">Click to Win</span>
+            </div>
+          </button>
+
+          {/* RED */}
+          <button
+            type="button"
+            disabled={isSubmittingOverride}
+            onClick={() => handleDirectSetOutcome('color', 'red')}
+            title="Click to force RED as winning result for this round"
+            className={`group relative rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 p-3.5 shadow-md transition hover:scale-102 active:scale-98 cursor-pointer text-left ${
+              adminSetWinner && adminSetWinner.color === 'Red'
+                ? 'ring-4 ring-amber-400 ring-offset-2'
+                : 'hover:ring-2 hover:ring-rose-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wider opacity-90 flex items-center gap-1.5">
+                RED
+                {adminSetWinner && adminSetWinner.color === 'Red' && (
+                  <Crown size={14} className="text-amber-300 animate-bounce" />
+                )}
+              </div>
+              <span className="text-[10px] font-extrabold bg-white/20 px-2 py-0.5 rounded-full group-hover:bg-white/30 transition">
+                SET WINNER ➔
+              </span>
+            </div>
+            <div className="text-xl sm:text-2xl font-mono mt-1 font-black">
               {poolTotals.red > 0 ? money(poolTotals.red) : '₹0.00'}
             </div>
-            <div className="text-[10px] opacity-75 font-normal mt-0.5">Payout 2x (2, 4, 6, 8)</div>
-          </div>
+            <div className="flex items-center justify-between text-[10px] opacity-85 font-normal mt-0.5">
+              <span>Payout 2x (2, 4, 6, 8)</span>
+              <span className="font-bold underline text-rose-100">Click to Win</span>
+            </div>
+          </button>
         </div>
 
         {/* 0-9 Numbers Grid with 1-click outcome select */}
@@ -1001,18 +1407,25 @@ export default function ColourPrediction() {
           {Array.from({ length: 10 }, (_, num) => {
             const info = getBallColorInfo(num)
             const amt = poolTotals.numberAmounts[num] || 0
+            const isWinner = adminSetWinner && Number(adminSetWinner.number) === num
             return (
               <button
                 key={num}
                 type="button"
-                onClick={() => {
-                  setTargetBallNumber(num)
-                  setTargetBallColor(info.text)
-                  setIsAdminModalOpen(true)
-                }}
-                title={`Click to set Ball #${num} as next winner`}
-                className="group relative rounded-2xl border border-slate-200 bg-white p-2.5 text-center shadow-xs hover:border-blue-500 hover:shadow-md hover:scale-105 active:scale-95 transition cursor-pointer"
+                disabled={isSubmittingOverride}
+                onClick={() => handleDirectSetOutcome('number', num)}
+                title={`Click to set Ball #${num} as guaranteed winner`}
+                className={`group relative rounded-2xl border p-2 text-center transition cursor-pointer hover:shadow-md hover:scale-105 active:scale-95 ${
+                  isWinner
+                    ? 'border-amber-400 ring-4 ring-amber-300 ring-offset-2 bg-amber-50/70 shadow-md'
+                    : 'border-slate-200 bg-white hover:border-blue-500 shadow-xs'
+                }`}
               >
+                {isWinner && (
+                  <div className="absolute -top-2 -right-1 bg-amber-500 text-white p-1 rounded-full shadow-md animate-bounce">
+                    <Crown size={12} />
+                  </div>
+                )}
                 <div className={`mx-auto flex h-10 w-10 items-center justify-center rounded-xl font-black text-white shadow-xs ${info.bg} group-hover:ring-2 group-hover:ring-blue-400`}>
                   {num}
                 </div>
@@ -1022,25 +1435,79 @@ export default function ColourPrediction() {
                 <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
                   {info.isBig ? 'Big' : 'Small'}
                 </div>
+                <div className={`text-[9px] font-extrabold mt-0.5 transition-opacity ${
+                  isWinner ? 'text-amber-700 opacity-100' : 'text-blue-600 opacity-0 group-hover:opacity-100'
+                }`}>
+                  {isWinner ? '★ WINNER' : 'Click to Win'}
+                </div>
               </button>
             )
           })}
         </div>
 
-        {/* Big / Small Summary */}
-        <div className="grid grid-cols-2 gap-3 text-center font-black text-white pt-1">
-          <div className="rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 p-3 shadow-md">
-            <div className="text-xs uppercase tracking-wider opacity-90">BIG (5-9)</div>
-            <div className="text-xl font-mono mt-0.5">
+        {/* Big / Small Summary with 1-Click Winner Selection */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-center font-black text-white pt-1">
+          <button
+            type="button"
+            disabled={isSubmittingOverride}
+            onClick={() => handleDirectSetOutcome('size', 'big')}
+            title="Click to force BIG (5-9) as winning result for this round"
+            className={`group relative rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 p-3.5 shadow-md transition hover:scale-102 active:scale-98 cursor-pointer text-left ${
+              adminSetWinner && adminSetWinner.size === 'Big'
+                ? 'ring-4 ring-amber-300 ring-offset-2'
+                : 'hover:ring-2 hover:ring-amber-200'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wider opacity-90 flex items-center gap-1.5">
+                BIG (5, 6, 7, 8, 9)
+                {adminSetWinner && adminSetWinner.size === 'Big' && (
+                  <Crown size={14} className="text-yellow-200 animate-bounce" />
+                )}
+              </div>
+              <span className="text-[10px] font-extrabold bg-white/20 px-2 py-0.5 rounded-full group-hover:bg-white/30 transition">
+                SET WINNER ➔
+              </span>
+            </div>
+            <div className="text-xl font-mono mt-1 font-black">
               {poolTotals.big > 0 ? money(poolTotals.big) : '₹0.00'}
             </div>
-          </div>
-          <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-600 p-3 shadow-md">
-            <div className="text-xs uppercase tracking-wider opacity-90">SMALL (0-4)</div>
-            <div className="text-xl font-mono mt-0.5">
+            <div className="flex items-center justify-between text-[10px] opacity-85 font-normal mt-0.5">
+              <span>Payout 2x</span>
+              <span className="font-bold underline text-amber-100">Click to Win</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            disabled={isSubmittingOverride}
+            onClick={() => handleDirectSetOutcome('size', 'small')}
+            title="Click to force SMALL (0-4) as winning result for this round"
+            className={`group relative rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-600 p-3.5 shadow-md transition hover:scale-102 active:scale-98 cursor-pointer text-left ${
+              adminSetWinner && adminSetWinner.size === 'Small'
+                ? 'ring-4 ring-amber-300 ring-offset-2'
+                : 'hover:ring-2 hover:ring-blue-200'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wider opacity-90 flex items-center gap-1.5">
+                SMALL (0, 1, 2, 3, 4)
+                {adminSetWinner && adminSetWinner.size === 'Small' && (
+                  <Crown size={14} className="text-yellow-200 animate-bounce" />
+                )}
+              </div>
+              <span className="text-[10px] font-extrabold bg-white/20 px-2 py-0.5 rounded-full group-hover:bg-white/30 transition">
+                SET WINNER ➔
+              </span>
+            </div>
+            <div className="text-xl font-mono mt-1 font-black">
               {poolTotals.small > 0 ? money(poolTotals.small) : '₹0.00'}
             </div>
-          </div>
+            <div className="flex items-center justify-between text-[10px] opacity-85 font-normal mt-0.5">
+              <span>Payout 2x</span>
+              <span className="font-bold underline text-blue-100">Click to Win</span>
+            </div>
+          </button>
         </div>
       </div>
 

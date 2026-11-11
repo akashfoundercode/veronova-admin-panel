@@ -14,6 +14,13 @@ function getMultiplierTier(m) {
   return 'blue'
 }
 
+function formatFlightTime(elapsed = 0) {
+  const totalSeconds = Math.max(0, Math.floor(Number(elapsed) || 0))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
 export default function FlightArena({
   gameState,
   multiplier,
@@ -58,7 +65,12 @@ export default function FlightArena({
   const runwayY = height * 0.775
   const runwayStartX = width * 0.06
   const liftoffX = width * 0.16
-  const maxForwardX = width * 0.84
+  const planeWidth = Math.min(215, Math.max(140, width * 0.165))
+  const planeHeight = planeWidth / 1.55
+  // The plane actor uses a runway anchor at 28% x / 82.5% y; offset it so
+  // its visible body settles in the center of the arena after takeoff.
+  const cruiseX = width * 0.5 - planeWidth * 0.22
+  const cruiseY = height * 0.5 + planeHeight * 0.325
 
   let planeX = runwayStartX
   let planeY = runwayY
@@ -116,28 +128,19 @@ export default function FlightArena({
       worldOffset = 0
       isGroundRolling = true
     } else {
-      // Phase 3: Continuous Dynamic Rocket Propulsion & Ascent across the Sky
+      // Phase 3: Move into a centered cruise position, then hold there while
+      // the scrolling sky communicates continued flight at any multiplier.
       isGroundRolling = false
       const climbT = t - LIFTOFF_TIME
-
-      // 1. Continuous forward travel across the arena (never stuck in one spot!)
-      const forwardRatio = 1 - Math.exp(-0.25 * climbT)
-      planeX = liftoffX + (maxForwardX - liftoffX) * forwardRatio
-
-      // 2. Continuous upward rocket ascent into the sky
       const liftP = 1 - Math.exp(-0.9 * climbT)
-      const initRise = (runwayY - height * 0.44) * liftP
-      const maxContinuousRise = height * 0.26
-      const steadyRise = Math.min(
-        maxContinuousRise,
-        (Math.log(Math.max(1, multiplier)) * (height * 0.046)) + (climbT * 0.8)
-      )
-      planeY = runwayY - initRise - steadyRise
+      const cruiseProgress = 1 - Math.exp(-1.5 * climbT)
+      planeX = liftoffX + (cruiseX - liftoffX) * cruiseProgress
+      planeY = runwayY + (cruiseY - runwayY) * cruiseProgress
 
-      // 3. Dynamic supersonic rocket pitch angle (smoothly elevates as climb accelerates)
-      const pitchBoost = Math.min(15.0, Math.log(Math.max(1, multiplier)) * 3.8 + (climbT * 0.35))
+      // Keep a modest upward flight angle without letting the jet leave frame.
+      const pitchBoost = Math.min(8.0, Math.log(Math.max(1, multiplier)) * 1.6)
       const targetPitch = -15.0 - pitchBoost
-      const microRocketSway = Math.sin(climbT * 2.4) * 0.5
+      const microRocketSway = Math.sin(climbT * 2.4) * 0.35
       rotation = targetPitch + microRocketSway
 
       // Landing Gear Retraction
@@ -145,9 +148,9 @@ export default function FlightArena({
       const gearDuration = 0.6
       retract = Math.min(1, Math.max(0, (climbT - gearDelay) / gearDuration))
 
-      // Aerodynamic micro-sway
-      const wobbleY = Math.sin(climbT * 2.2) * 1.4
-      const wobbleX = Math.cos(climbT * 1.6) * 0.9
+      // Subtle centered hover motion; it cannot accumulate and move offscreen.
+      const wobbleY = Math.sin(climbT * 2.2) * 2
+      const wobbleX = Math.cos(climbT * 1.6) * 1.5
       planeX += wobbleX
       planeY += wobbleY
 
@@ -330,20 +333,31 @@ export default function FlightArena({
 
       {/* Jet Actor Container (Active during Flight) - 100% GPU Hardware Accelerated */}
       {isFlying && (
-        <div
-          className="plane-actor-container"
-          style={{
-            transform: `translate3d(${planeX}px, ${planeY}px, 0) translate(-28%, -82.5%)`,
-          }}
-        >
-          <AviatorPlane
-            rotation={rotation}
-            isFlying={isFlying}
-            retract={retract}
-            vibration={vibration}
-            isGroundRolling={isGroundRolling}
-          />
-        </div>
+        <>
+          <div
+            className="plane-actor-container"
+            style={{
+              transform: `translate3d(${planeX}px, ${planeY}px, 0) translate(-28%, -82.5%)`,
+            }}
+          >
+            <AviatorPlane
+              rotation={rotation}
+              isFlying={isFlying}
+              retract={retract}
+              vibration={vibration}
+              isGroundRolling={isGroundRolling}
+            />
+          </div>
+          <div
+            className="plane-flight-timer"
+            style={{
+              transform: `translate3d(${planeX + planeWidth * 0.22}px, ${planeY + planeHeight * 0.2}px, 0) translateX(-50%)`,
+            }}
+            aria-label={`Flight time ${formatFlightTime(flightElapsed)}`}
+          >
+            FLIGHT {formatFlightTime(flightElapsed)}
+          </div>
+        </>
       )}
 
       {/* Dynamic Cinematic Explosion Blast & Shockwave (No static crash PNG) */}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowUpDown, Download, Search } from 'lucide-react'
+import { ArrowUpDown, Download, Search, ChevronDown } from 'lucide-react'
 import VeronovaLoader from './ui/VeronovaLoader'
 
 export function exportCSV(name, columns, rows) {
@@ -61,9 +61,18 @@ export default function DataTable({
           {!hideSize && (
             <label className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-slate-600">
               Show
-              <select className="input !w-auto !py-1.5 sm:!py-2 text-xs sm:text-sm" value={size} onChange={(e) => { setSize(+e.target.value); setPage(1) }}>
-                {sizes.map((s) => <option key={s}>{s}</option>)}
-              </select>
+              <div className="relative inline-flex items-center">
+                <select
+                  className="appearance-none rounded-xl border border-slate-300 bg-white hover:bg-slate-50 pl-2.5 pr-6 py-1 text-xs sm:text-sm font-bold text-slate-800 shadow-2xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 cursor-pointer transition"
+                  value={size}
+                  onChange={(e) => { setSize(+e.target.value); setPage(1) }}
+                >
+                  {sizes.map((s) => <option key={s}>{s}</option>)}
+                </select>
+                <div className="pointer-events-none absolute right-1.5 flex items-center text-slate-500">
+                  <ChevronDown size={13} className="stroke-[2.5]" />
+                </div>
+              </div>
               {unit}
             </label>
           )}

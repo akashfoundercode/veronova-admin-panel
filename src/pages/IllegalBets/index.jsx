@@ -3,7 +3,7 @@ import {
   ShieldAlert, Eye, Lock, Unlock, AlertTriangle, ShieldCheck,
   TrendingDown, DollarSign, RefreshCw, Copy, Check, Search, Filter,
   ExternalLink, Ban, CheckCircle2, FileText, HelpCircle, ArrowUpRight,
-  Sliders, UserX, Cpu, Activity, Globe, Plus, KeyRound, LogIn, AlertCircle
+  Sliders, UserX, Cpu, Activity, Globe, Plus, KeyRound, LogIn, AlertCircle, Gamepad2
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
@@ -37,6 +37,7 @@ export default function IllegalBets() {
   const [flagForm, setFlagForm] = useState({
     user_id: '',
     user_name: '',
+    game_name: 'Colour Prediction (Wingo 1M)',
     mobile: '',
     email: '',
     violation_type: 'Opposite Betting (Hedging)',
@@ -227,12 +228,13 @@ export default function IllegalBets() {
       risk_level: riskLevel,
       count: 1,
       wallet_at_risk: exposed,
+      game_name: flagForm.game_name || 'Colour Prediction (Wingo 1M)',
       status: flagForm.status || 'Frozen',
       flagged_at: new Date().toLocaleString(),
       bets: [
         {
           id: `BET_${Math.floor(10000 + Math.random() * 90000)}`,
-          game: 'Colour Prediction (Wingo 1M)',
+          game: flagForm.game_name || 'Colour Prediction (Wingo 1M)',
           round_id: `#${new Date().getFullYear()}0701`,
           choice: 'Hedging Pattern Flagged',
           conflict: flagForm.violation_type,
@@ -249,6 +251,8 @@ export default function IllegalBets() {
     const payload = {
       user_id: newIllegal.user_id,
       username: newIllegal.user_name,
+      game_name: newIllegal.game_name,
+      game: newIllegal.game_name,
       mobile: newIllegal.mobile,
       is_illegal: 1,
       illegal: true,
@@ -414,6 +418,37 @@ export default function IllegalBets() {
           </div>
         </div>
       ),
+    },
+    {
+      key: 'game_name',
+      label: 'Game Name',
+      render: (r) => {
+        const game = r.game_name || r.game || (r.bets && r.bets[0]?.game) || 'Colour Prediction (Wingo 1M)'
+        const low = game.toLowerCase()
+        let badgeColor = 'bg-blue-50 text-blue-700 border-blue-200'
+        if (low.includes('aviator')) {
+          badgeColor = 'bg-rose-50 text-rose-700 border-rose-200'
+        } else if (low.includes('chicken')) {
+          badgeColor = 'bg-amber-50 text-amber-800 border-amber-200'
+        } else if (low.includes('horse')) {
+          badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'
+        } else if (low.includes('colour') || low.includes('wingo')) {
+          badgeColor = 'bg-purple-50 text-purple-700 border-purple-200'
+        }
+        return (
+          <div className="min-w-[150px]">
+            <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-extrabold border ${badgeColor}`}>
+              <Gamepad2 size={13} />
+              {game}
+            </span>
+            {r.bets && r.bets[0]?.round_id && (
+              <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
+                {r.bets[0].round_id}
+              </span>
+            )}
+          </div>
+        )
+      },
     },
     {
       key: 'violation',
@@ -915,14 +950,21 @@ export default function IllegalBets() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 9876543210"
-                  className="input w-full text-xs font-mono"
-                  value={flagForm.mobile}
-                  onChange={(e) => setFlagForm({ ...flagForm, mobile: e.target.value })}
-                />
+                <label className="block text-xs font-bold text-slate-700 mb-1">Target Game *</label>
+                <select
+                  className="input w-full text-xs font-bold text-blue-700 bg-blue-50/50"
+                  value={flagForm.game_name}
+                  onChange={(e) => setFlagForm({ ...flagForm, game_name: e.target.value })}
+                >
+                  <option value="Colour Prediction (Wingo 1M)">Colour Prediction (Wingo 1M)</option>
+                  <option value="Colour Prediction (Wingo 30S)">Colour Prediction (Wingo 30S)</option>
+                  <option value="Colour Prediction (Wingo 3M)">Colour Prediction (Wingo 3M)</option>
+                  <option value="Colour Prediction (Wingo 5M)">Colour Prediction (Wingo 5M)</option>
+                  <option value="Aviator Crash">Aviator Crash</option>
+                  <option value="Chicken Road Game">Chicken Road Game</option>
+                  <option value="Horse-Riding">Horse-Riding</option>
+                  <option value="Jilli Game Bets">Jilli Game Bets</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Violation Category *</label>
@@ -937,6 +979,30 @@ export default function IllegalBets() {
                   <option value="Syndicate / Coordinated Wagers">Syndicate / Coordinated Wagers</option>
                   <option value="Abnormal Win Rate Anomaly">Abnormal Win Rate Anomaly</option>
                   <option value="Bonus Abuse / Wash Betting">Bonus Abuse / Wash Betting</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 9876543210"
+                  className="input w-full text-xs font-mono"
+                  value={flagForm.mobile}
+                  onChange={(e) => setFlagForm({ ...flagForm, mobile: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Action Status</label>
+                <select
+                  className="input w-full text-xs font-bold"
+                  value={flagForm.status}
+                  onChange={(e) => setFlagForm({ ...flagForm, status: e.target.value })}
+                >
+                  <option value="Frozen">Frozen (Quarantined)</option>
+                  <option value="Under Review">Under Review</option>
                 </select>
               </div>
             </div>

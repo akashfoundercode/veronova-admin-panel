@@ -4,7 +4,7 @@ import {
   Megaphone, Image, MessageSquare, CreditCard, ArrowDownToLine, ArrowUpFromLine,
   Headphones, Percent, Dices, Star, IndianRupee, TrendingUp, Receipt, Info, Flame,
   Send, History, Landmark, KeyRound, FileEdit, Contact, Trash2, Edit3, AlertCircle,
-  Home, Globe, Sparkles, CheckCircle2
+  Home, Globe, Sparkles, CheckCircle2, Layers
 } from 'lucide-react'
 import { ROUTES } from './routes'
 
@@ -28,6 +28,7 @@ export const sidebarMenus = [
   { to: ROUTES.AVIATOR_SETTINGS, label: 'Aviator Settings', icon: Settings },
   { to: ROUTES.COLOUR_PREDICTION, label: 'Wingo (Colour Prediction)', icon: Palette },
   { to: ROUTES.HORSE_RIDING, label: 'Horse-Riding', icon: Dices },
+  { to: ROUTES.STACK_TOWER, label: 'Stack Tower Game', icon: Layers },
   {
     label: 'Chicken Road Game',
     icon: Flame,

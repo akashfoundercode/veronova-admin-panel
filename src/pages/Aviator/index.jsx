@@ -217,7 +217,7 @@ export default function Aviator() {
     }
   }, [])
 
-  // Subscribe to live socket service (https://fcsocket.site | demobdg_aviator) & iframe bridge
+  // Subscribe to the configured live socket service & iframe bridge
   useEffect(() => {
     const handlePacket = (packet) => {
       if (!packet) return
@@ -249,6 +249,10 @@ export default function Aviator() {
     })
 
     const handleWindowMsg = (e) => {
+      // Security: Validate message origin to prevent cross-origin injection
+      if (e.origin && e.origin !== window.location.origin && !e.origin.includes('localhost') && !e.origin.includes('127.0.0.1')) {
+        return
+      }
       if (e.data && e.data.type === 'PARENT_SCROLL') {
         const delta = Number(e.data.deltaY) || 0
         if (!delta) return
@@ -310,23 +314,9 @@ export default function Aviator() {
 
     // Send force crash across socket connection with the exact live flying timer
     aviatorSocket.forceCrash(exactCrash)
-
-    const newDrops = [
-      {
-        id: drops.length + 1,
-        round: periodNo,
-        crash: `${exactCrash.toFixed(2)}x`,
-        n: exactCrash,
-        at: 'Just now',
-        hash: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
-        pool: Math.floor(40000 + Math.random() * 30000),
-      },
-      ...drops,
-    ]
-    setDrops(newDrops)
-    setMultipliers([exactCrash, ...multipliers.slice(0, 14)])
     setIsManualOverride(false)
     setIframeGameState('CRASHED')
+    toast(`Force crash command emitted at ${exactCrash.toFixed(2)}x`)
 
     if (iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: 'FORCE_CRASH', crashPoint: exactCrash }, '*')

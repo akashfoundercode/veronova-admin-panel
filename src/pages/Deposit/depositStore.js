@@ -35,14 +35,14 @@ export function deduplicateDeposits(list) {
 export function getDeposits() {
   try {
     const raw = localStorage.getItem(DEPOSITS_KEY) || localStorage.getItem('veronova_deposits_v1')
-    if (!raw) return SEED_DEPOSITS
+    if (!raw) return []
     const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return deduplicateDeposits(parsed.map((item, idx) => normalizeDeposit(item, idx)))
+    if (Array.isArray(parsed)) {
+      return deduplicateDeposits(parsed.map((item, idx) => normalizeDeposit(item, idx)).filter(Boolean))
     }
-    return SEED_DEPOSITS
+    return []
   } catch (err) {
-    return SEED_DEPOSITS
+    return []
   }
 }
 
@@ -56,11 +56,15 @@ export function saveDeposits(deposits) {
 export function normalizeStatus(rawStatus) {
   if (rawStatus === undefined || rawStatus === null) return 'Pending'
   const s = String(rawStatus).trim().toLowerCase()
-  if (s === 'success' || s === 'approved' || s === 'completed' || s === '1' || s === 'done') {
+  // Backend contract: 1 = Pending, 2 = Success / Approved, 3 = Reject
+  if (s === 'success' || s === 'approved' || s === 'completed' || s === 'done' || s === '2') {
     return 'Success'
   }
-  if (s === 'reject' || s === 'rejected' || s === 'failed' || s === 'cancelled' || s === '0') {
+  if (s === 'reject' || s === 'rejected' || s === 'failed' || s === 'cancelled' || s === '3' || s === '0') {
     return 'Reject'
+  }
+  if (s === 'pending' || s === '1') {
+    return 'Pending'
   }
   return 'Pending'
 }

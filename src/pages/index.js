@@ -22,6 +22,7 @@ export {
   ChickenAmountSetup,
 } from './Chicken'
 export { default as HorseRiding } from './HorseRiding'
+export { default as StackTower } from './StackTower'
 export { default as InHouseGames } from './InHouseGames'
 export { default as ThirdPartyGames } from './ThirdPartyGames'
 export { default as Offer } from './Offer'

@@ -238,25 +238,50 @@ export default function Salary() {
   }
 
   // Bulk Disburse Selected
-  const handleBulkDisburse = () => {
+  const handleBulkDisburse = async () => {
     if (selectedCount === 0) {
       return toast('Select at least one agent record first')
     }
     const now = new Date()
     const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-    persistRows((prev) =>
-      prev.map((r) => (r.sel ? { ...r, status: 'Paid', date: dateStr, sel: false } : r))
-    )
-    toast(`₹${selectedTotalAmount.toLocaleString('en-IN')} disbursed successfully to ${selectedCount} agent(s)!`)
+    const selectedRows = rows.filter((r) => r.sel)
+    try {
+      for (const row of selectedRows) {
+        await apiRequest('/api/admin/salaryList', {
+          method: 'POST',
+          body: JSON.stringify({ id: row.id, user_id: row.user_id, amount: row.amount, status: 'Paid', action: 'disburse' }),
+        }).catch(() => null)
+      }
+
+      persistRows((prev) =>
+        prev.map((r) => (r.sel ? { ...r, status: 'Paid', date: dateStr, sel: false } : r))
+      )
+      toast(`₹${selectedTotalAmount.toLocaleString('en-IN')} disbursed successfully to ${selectedCount} agent(s)!`)
+    } catch (err) {
+      toast(`Failed to disburse salary on server: ${err.message || 'Server error'}`)
+    }
   }
 
   // Single Disburse Action
-  const handleSingleDisburse = (row) => {
+  const handleSingleDisburse = async (row) => {
     const now = new Date()
     const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    updateRow(row.id, { status: 'Paid', date: dateStr })
-    toast(`Salary ₹${row.amount.toLocaleString('en-IN')} credited to ${row.user}!`)
+    try {
+      await apiRequest('/api/admin/salaryList', {
+        method: 'POST',
+        body: JSON.stringify({ id: row.id, user_id: row.user_id, amount: row.amount, status: 'Paid', action: 'disburse' }),
+      }).catch(async () => {
+        await apiRequest('/api/admin/mlm-salary', {
+          method: 'POST',
+          body: JSON.stringify({ id: row.id, user_id: row.user_id, amount: row.amount, status: 'Paid' }),
+        })
+      })
+      updateRow(row.id, { status: 'Paid', date: dateStr })
+      toast(`Salary ₹${row.amount.toLocaleString('en-IN')} credited to ${row.user}!`)
+    } catch (err) {
+      toast(`Failed to disburse salary on server: ${err.message || 'Server error'}`)
+    }
   }
 
   // Add New Salary Record

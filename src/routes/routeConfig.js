@@ -37,6 +37,7 @@ import {
   Support,
   Simple,
   HorseRiding,
+  StackTower,
   InHouseGames,
   ThirdPartyGames,
 } from '@/pages'
@@ -64,6 +65,9 @@ export const routesConfig = [
   { path: ROUTES.CHICKEN_BET_VALUES, element: ChickenBetValues },
   { path: ROUTES.CHICKEN_AMOUNT_SETUP, element: ChickenAmountSetup },
   { path: ROUTES.HORSE_RIDING, element: HorseRiding },
+  { path: ROUTES.STACK_TOWER, element: StackTower },
+  { path: ROUTES.STACK_TOWER_STATS, element: StackTower },
+  { path: ROUTES.STACK_TOWER_CONTROL, element: StackTower },
   { path: ROUTES.IN_HOUSE_GAMES, element: InHouseGames },
   { path: ROUTES.THIRD_PARTY_GAMES, element: ThirdPartyGames },
   { path: ROUTES.JILLI_BETS, element: Simple },

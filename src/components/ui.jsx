@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { X, ChevronDown } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 
@@ -140,9 +140,14 @@ export function FormModal({ title, fields, values = {}, onSave, onClose, saveLab
           <div key={f.key}>
             <label className="label">{f.label}</label>
             {f.options ? (
-              <select className="input" value={v[f.key] ?? ''} onChange={(e) => setV({ ...v, [f.key]: e.target.value })}>
-                {f.options.map((o) => <option key={o}>{o}</option>)}
-              </select>
+              <div className="relative">
+                <select className="input appearance-none bg-white border border-slate-300 pr-8 font-medium text-slate-800" value={v[f.key] ?? ''} onChange={(e) => setV({ ...v, [f.key]: e.target.value })}>
+                  {f.options.map((o) => <option key={o}>{o}</option>)}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                  <ChevronDown size={14} className="stroke-[2.5]" />
+                </div>
+              </div>
             ) : (
               <input className="input" type={f.type || 'text'} value={v[f.key] ?? ''} onChange={(e) => setV({ ...v, [f.key]: e.target.value })} />
             )}

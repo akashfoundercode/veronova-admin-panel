@@ -75,20 +75,18 @@ export default function Withdrawal({ statusMode = null }) {
             .map((item, idx) => normalizeWithdrawal(item, idx))
             .filter(Boolean)
 
-          if (formatted.length > 0) {
-            setRows((prev) => {
-              let updated
-              if (targetTab === 'ALL' || !targetTab) {
-                updated = deduplicateWithdrawals(formatted)
-              } else {
-                const normTab = targetTab === 'REJECTED' ? 'REJECT' : targetTab
-                const others = prev.filter((r) => r.status.toUpperCase() !== normTab)
-                updated = deduplicateWithdrawals([...formatted, ...others])
-              }
-              saveWithdrawals(updated)
-              return updated
-            })
-          }
+          setRows((prev) => {
+            let updated
+            if (targetTab === 'ALL' || !targetTab) {
+              updated = deduplicateWithdrawals(formatted)
+            } else {
+              const normTab = targetTab === 'REJECTED' ? 'REJECT' : targetTab
+              const others = prev.filter((r) => r.status.toUpperCase() !== normTab)
+              updated = deduplicateWithdrawals([...formatted, ...others])
+            }
+            saveWithdrawals(updated)
+            return updated
+          })
           setLastSynced(new Date().toLocaleTimeString())
           console.log(`[Veronova Withdrawals] Synced records from ${endpoint}`)
         }
@@ -119,16 +117,17 @@ export default function Withdrawal({ statusMode = null }) {
   }
 
   // 3-Option Status Dropdown Handler [Pending, Approved, Reject]
+  // Backend Contract: 1 = Pending, 2 = Approve, 3 = Reject
   const handleStatusChange = async (row, newStatus) => {
     if (row.status === newStatus) return
 
-    const next = rows.map((r) => (r.id === row.id ? { ...r, status: newStatus } : r))
-    persist(next)
-    toast(`Withdrawal #${row.req_id || row.id} updated to ${newStatus}!`)
+    const numericStatus = newStatus === 'Approved' ? 2 : newStatus === 'Reject' ? 3 : 1
+    const actionName = newStatus === 'Approved' ? 'approve' : newStatus === 'Reject' ? 'reject' : 'pending'
 
     const payload = {
       id: row.id,
-      status: newStatus.toLowerCase(),
+      status: numericStatus,
+      action: actionName,
       status_name: newStatus,
     }
 
@@ -138,39 +137,45 @@ export default function Withdrawal({ statusMode = null }) {
 
       try {
         const res = await apiRequest(statusUrl, {
-          method: 'PUT',
+          method: 'POST',
           body: JSON.stringify(payload),
         })
-        if (res && (res.status === 200 || res.success)) ok = true
+        if (res && (res.status === 200 || res.success !== false)) ok = true
       } catch {
         try {
           const res2 = await apiRequest(statusUrl, {
-            method: 'POST',
+            method: 'PUT',
             body: JSON.stringify(payload),
           })
-          if (res2 && (res2.status === 200 || res2.success)) ok = true
+          if (res2 && (res2.status === 200 || res2.success !== false)) ok = true
         } catch {}
       }
 
       if (!ok) {
-        const itemUrl = API_ENDPOINTS.WITHDRAWAL_ITEM_PROXY(row.id)
-        await apiRequest(itemUrl, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        }).catch(async () => {
-          await apiRequest(itemUrl, {
-            method: 'PATCH',
+        try {
+          const res3 = await apiRequest('/api/admin/withdrawals/status', {
+            method: 'POST',
             body: JSON.stringify(payload),
-          }).catch(async () => {
-            await apiRequest(itemUrl, {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            }).catch(() => null)
           })
-        })
+          if (res3 && (res3.status === 200 || res3.success !== false)) ok = true
+        } catch {
+          const itemUrl = API_ENDPOINTS.WITHDRAWAL_ITEM_PROXY(row.id)
+          await apiRequest(itemUrl, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          })
+          ok = true
+        }
+      }
+
+      if (ok) {
+        const next = rows.map((r) => (r.id === row.id ? { ...r, status: newStatus } : r))
+        persist(next)
+        toast(`Withdrawal #${row.req_id || row.id} updated to ${newStatus}!`)
       }
     } catch (err) {
       console.warn(`[Veronova Withdrawals] Status update failed for #${row.id}:`, err.message)
+      toast(`Failed to update status on server: ${err.message || 'Server error'}`)
     }
   }
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { soundManager } from '../utils/audio'
+import { SOCKET_CONFIG } from '@/constants/socketConfig'
 
 function Header({
   balance,
@@ -56,7 +57,7 @@ function Header({
         {socketStatus && (
           <div
             className={`socket-badge ${socketStatus.connected ? '' : 'disconnected'}`}
-            title={`Server: ${socketStatus.serverUrl || 'https://fcsocket.site'} (${socketStatus.channel || 'demobdg_aviator'})`}
+            title={`Server: ${socketStatus.serverUrl || SOCKET_CONFIG.AVIATOR.URL} (${socketStatus.channel || SOCKET_CONFIG.AVIATOR.EVENT_NAME})`}
           >
             <span className="socket-dot" />
             <span>{socketStatus.connected ? 'FC LIVE' : 'CONNECTING'}</span>

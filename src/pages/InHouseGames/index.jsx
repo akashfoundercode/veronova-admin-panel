@@ -87,6 +87,17 @@ const LOTTERY_GAMES = [
     badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
     image: aviatorImg,
   },
+  {
+    id: 5,
+    title: 'Stack Tower',
+    category: 'Lottery',
+    status: 'Active',
+    route: ROUTES.STACK_TOWER,
+    rtp: '97.4%',
+    type: 'Tower Stacking & Obstacle Topple',
+    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
+    image: inhouseBannerImg,
+  },
 ]
 
 // 8 Platform Categories matching the reference with custom bg, gradient and icons

@@ -74,20 +74,18 @@ export default function Deposit({ statusMode = null }) {
             .map((item, idx) => normalizeDeposit(item, idx))
             .filter(Boolean)
 
-          if (formatted.length > 0) {
-            setRows((prev) => {
-              let updated
-              if (targetTab === 'ALL' || !targetTab) {
-                updated = deduplicateDeposits(formatted)
-              } else {
-                // Merge fresh rows for this status tab with existing rows
-                const others = prev.filter((r) => r.status.toUpperCase() !== targetTab)
-                updated = deduplicateDeposits([...formatted, ...others])
-              }
-              saveDeposits(updated)
-              return updated
-            })
-          }
+          setRows((prev) => {
+            let updated
+            if (targetTab === 'ALL' || !targetTab) {
+              updated = deduplicateDeposits(formatted)
+            } else {
+              // Replace rows matching this targetTab with fresh server response
+              const others = prev.filter((r) => r.status.toUpperCase() !== targetTab)
+              updated = deduplicateDeposits([...formatted, ...others])
+            }
+            saveDeposits(updated)
+            return updated
+          })
           setLastSynced(new Date().toLocaleTimeString())
           console.log(`[Veronova Deposits] Synced records from ${endpoint}`)
         }
@@ -125,61 +123,67 @@ export default function Deposit({ statusMode = null }) {
   }
 
   // 3 Dropdown Status Change Handler [Pending, Success, Reject]
-  // Uses /admin/deposits/:id/status with fallback to /admin/deposits/:id
+  // Backend Contract: 1 = Pending, 2 = Approve/Success, 3 = Reject
   const handleStatusChange = async (row, newStatus) => {
     if (row.status === newStatus) return
 
-    const next = rows.map((r) => (r.id === row.id ? { ...r, status: newStatus } : r))
-    persist(next)
-    toast(`Deposit #${row.txn_id || row.id} updated to ${newStatus}!`)
+    // Numeric and action mapping corresponding to backend contract
+    const numericStatus = newStatus === 'Success' ? 2 : newStatus === 'Reject' ? 3 : 1
+    const actionName = newStatus === 'Success' ? 'approve' : newStatus === 'Reject' ? 'reject' : 'pending'
 
     const payload = {
       id: row.id,
-      status: newStatus.toLowerCase(),
+      status: numericStatus,
+      action: actionName,
       status_name: newStatus,
     }
 
     try {
-      // 1. Primary: /admin/deposits/:id/status
       const statusUrl = API_ENDPOINTS.DEPOSIT_STATUS_PROXY(row.id)
       let updatedOk = false
 
       try {
         const res = await apiRequest(statusUrl, {
-          method: 'PUT',
+          method: 'POST',
           body: JSON.stringify(payload),
         })
-        if (res && (res.status === 200 || res.success)) updatedOk = true
+        if (res && (res.status === 200 || res.success !== false)) updatedOk = true
       } catch {
         try {
           const res2 = await apiRequest(statusUrl, {
-            method: 'POST',
+            method: 'PUT',
             body: JSON.stringify(payload),
           })
-          if (res2 && (res2.status === 200 || res2.success)) updatedOk = true
+          if (res2 && (res2.status === 200 || res2.success !== false)) updatedOk = true
         } catch {}
       }
 
-      // 2. Fallback: /admin/deposits/:id
+      // Fallback: POST /api/admin/deposits/status or /admin/deposits/:id
       if (!updatedOk) {
-        const itemUrl = API_ENDPOINTS.DEPOSIT_ITEM_PROXY(row.id)
-        await apiRequest(itemUrl, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        }).catch(async () => {
-          await apiRequest(itemUrl, {
-            method: 'PATCH',
+        try {
+          const res3 = await apiRequest('/api/admin/deposits/status', {
+            method: 'POST',
             body: JSON.stringify(payload),
-          }).catch(async () => {
-            await apiRequest(itemUrl, {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            }).catch(() => null)
           })
-        })
+          if (res3 && (res3.status === 200 || res3.success !== false)) updatedOk = true
+        } catch {
+          const itemUrl = API_ENDPOINTS.DEPOSIT_ITEM_PROXY(row.id)
+          await apiRequest(itemUrl, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          })
+          updatedOk = true
+        }
+      }
+
+      if (updatedOk) {
+        const next = rows.map((r) => (r.id === row.id ? { ...r, status: newStatus } : r))
+        persist(next)
+        toast(`Deposit #${row.txn_id || row.id} updated to ${newStatus}!`)
       }
     } catch (err) {
       console.warn(`[Veronova Deposits] Status update failed for #${row.id}:`, err.message)
+      toast(`Failed to update status on server: ${err.message || 'Server error'}`)
     }
   }
 

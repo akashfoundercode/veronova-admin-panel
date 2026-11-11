@@ -51,7 +51,7 @@ export default function ThirdPartyGames() {
   const [isLoadingGames, setIsLoadingGames] = useState(false)
   const dropdownRef = useRef(null)
 
-  // Fetch live game categories from backend API: https://root.veronova.co.in/api/game-categories
+  // Fetch live game categories from the configured backend API.
   useEffect(() => {
     let isMounted = true
     const fetchApiCategories = async () => {

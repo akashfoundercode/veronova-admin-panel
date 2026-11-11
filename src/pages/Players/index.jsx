@@ -4,7 +4,8 @@ import {
   Users, UserPlus, Search, Wallet, Crown, ShieldCheck, ShieldAlert,
   Phone, Copy, Check, Eye, EyeOff, Lock, KeyRound, Pencil, Trash2, ArrowUpRight, ArrowDownLeft,
   Plus, Minus, TrendingUp, DollarSign, Filter, RefreshCw, X, CheckCircle2,
-  AlertCircle, Sparkles, Trophy, ExternalLink, Ban, Unlock, Loader2, LogIn
+  AlertCircle, Sparkles, Trophy, ExternalLink, Ban, Unlock, Loader2, LogIn,
+  Calendar, Clock
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, Modal, useToast, money } from '@/components/ui'
@@ -93,6 +94,8 @@ export default function Players() {
   const [filterTab, setFilterTab] = useState('ALL') // ALL, ACTIVE, VIP, HIGH_BALANCE, SUSPENDED
   const [vipFilter, setVipFilter] = useState('ALL')
   const [kycFilter, setKycFilter] = useState('ALL')
+  const [statusFilter, setStatusFilter] = useState('ALL') // ALL, Active, Suspended
+  const [dateFilter, setDateFilter] = useState('ALL') // ALL, TODAY, YESTERDAY, LAST_7_DAYS, THIS_MONTH
   const [copiedId, setCopiedId] = useState(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -138,61 +141,126 @@ export default function Players() {
   }
 
   // Handle Wallet Adjustment
-  const handleWalletAdjust = (e) => {
+  const handleWalletAdjust = async (e) => {
     e.preventDefault()
     const amt = Number(walletAmt)
     if (!amt || amt <= 0) return toast('Please enter a valid amount')
 
-    const multiplier = walletModal.mode === 'credit' ? 1 : -1
+    const isCredit = walletModal.mode === 'credit'
+    const multiplier = isCredit ? 1 : -1
     const targetPlayer = walletModal.player
 
     if (multiplier < 0 && targetPlayer.wallet < amt) {
       return toast('Cannot deduct more than current wallet balance!')
     }
 
-    persistRows((prev) =>
-      prev.map((p) => {
-        if (p.id === targetPlayer.id) {
-          const newWallet = Math.max(0, p.wallet + amt * multiplier)
-          return { ...p, wallet: newWallet }
-        }
-        return p
-      })
-    )
+    try {
+      const payload = {
+        // `id` is the backend players table ID; `user_id` may be a separate public identifier.
+        userId: targetPlayer.id,
+        username: targetPlayer.user_name,
+        user_id: targetPlayer.user_id,
+        amount: amt,
+        type: walletModal.mode,
+        action: walletModal.mode,
+        remark: walletRemark.trim() || `Admin manual wallet ${walletModal.mode}`,
+      }
+      const endpoint = isCredit ? API_ENDPOINTS.WALLET_CREDIT : API_ENDPOINTS.WALLET_DEBIT
 
-    toast(
-      `Wallet ₹${amt.toLocaleString('en-IN')} ${
-        walletModal.mode === 'credit' ? 'credited to' : 'debited from'
-      } ${targetPlayer.user_name}!`
-    )
-    setWalletModal(null)
-    setWalletAmt('')
-    setWalletRemark('')
+      if (!auth.getToken()) {
+        toast('Admin session token missing. Please log in again before adjusting wallet.')
+        return
+      }
+
+      await apiRequest(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        // Wallet endpoint auth failures should show in the modal and leave the admin session intact.
+        redirectOnAuthError: false,
+      })
+
+      persistRows((prev) =>
+        prev.map((p) => {
+          if (p.id === targetPlayer.id) {
+            const newWallet = Math.max(0, p.wallet + amt * multiplier)
+            return { ...p, wallet: newWallet }
+          }
+          return p
+        })
+      )
+
+      toast(
+        `Wallet ₹${amt.toLocaleString('en-IN')} ${
+          walletModal.mode === 'credit' ? 'credited to' : 'debited from'
+        } ${targetPlayer.user_name}!`
+      )
+      setWalletModal(null)
+      setWalletAmt('')
+      setWalletRemark('')
+    } catch (err) {
+      console.warn('Wallet adjust error:', err)
+      toast(`Failed to adjust wallet on server: ${err.message || 'Server error'}`)
+    }
   }
 
   // Toggle Player Status (Active / Suspended)
-  const togglePlayerStatus = (player) => {
+  const togglePlayerStatus = async (player) => {
     const nextStatus = player.status === 'Active' ? 'Suspended' : 'Active'
-    persistRows((prev) =>
-      prev.map((p) => (p.id === player.id ? { ...p, status: nextStatus } : p))
-    )
-    toast(`Player #${player.id} status changed to ${nextStatus}`)
-    if (viewPlayer?.id === player.id) {
-      setViewPlayer((prev) => ({ ...prev, status: nextStatus }))
+    const numericStatus = nextStatus === 'Active' ? 1 : 0
+    try {
+      const endpoint = player.status === 'Active'
+        ? `/api/admin/players/${player.id}/suspend`
+        : `/api/admin/players/${player.id}/unsuspend`
+
+      await apiRequest(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id: player.id, status: numericStatus }),
+      }).catch(async () => {
+        await apiRequest('/api/admin/players/status', {
+          method: 'POST',
+          body: JSON.stringify({ id: player.id, status: numericStatus }),
+        })
+      })
+
+      persistRows((prev) =>
+        prev.map((p) => (p.id === player.id ? { ...p, status: nextStatus } : p))
+      )
+      toast(`Player #${player.id} status changed to ${nextStatus}`)
+      if (viewPlayer?.id === player.id) {
+        setViewPlayer((prev) => ({ ...prev, status: nextStatus }))
+      }
+    } catch (err) {
+      console.warn('Player status error:', err)
+      toast(`Failed to update player status on server: ${err.message || 'Server error'}`)
     }
   }
 
   // Handle Save Edit Player
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault()
-    persistRows((prev) =>
-      prev.map((p) => (p.id === editPlayer.id ? { ...p, ...editPlayer } : p))
-    )
-    toast('Player information updated successfully')
-    if (viewPlayer?.id === editPlayer.id) {
-      setViewPlayer(editPlayer)
+    try {
+      await apiRequest(`/api/admin/players`, {
+        method: 'POST',
+        body: JSON.stringify(editPlayer),
+      }).catch(async () => {
+        await apiRequest(`/api/admin/players/${editPlayer.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(editPlayer),
+        })
+      })
+
+      persistRows((prev) =>
+        prev.map((p) => (p.id === editPlayer.id ? { ...p, ...editPlayer } : p))
+      )
+      toast('Player information updated successfully')
+      if (viewPlayer?.id === editPlayer.id) {
+        setViewPlayer(editPlayer)
+      }
+      setEditPlayer(null)
+    } catch (err) {
+      console.warn('Save edit player error:', err)
+      toast(`Failed to save player edits on server: ${err.message || 'Server error'}`)
     }
-    setEditPlayer(null)
   }
 
   // Fetch Players from Backend GET /api/admin/players
@@ -343,13 +411,37 @@ export default function Players() {
       if (filterTab === 'HIGH_BALANCE' && r.wallet < 50000) return false
       if (filterTab === 'SUSPENDED' && r.status !== 'Suspended') return false
 
+      // Status filter
+      if (statusFilter === 'Active' && r.status !== 'Active') return false
+      if (statusFilter === 'Suspended' && r.status !== 'Suspended') return false
+
       // Dropdown filters
       if (vipFilter !== 'ALL' && r.vip_level !== vipFilter) return false
       if (kycFilter !== 'ALL' && r.kyc_status !== kycFilter) return false
 
+      // Date filtration
+      if (dateFilter !== 'ALL') {
+        const itemDate = r.created_at ? new Date(r.created_at) : null
+        if (itemDate && !isNaN(itemDate.getTime())) {
+          const now = new Date()
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          const itemDay = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate())
+          const diffDays = Math.floor((today - itemDay) / (1000 * 60 * 60 * 24))
+
+          if (dateFilter === 'TODAY' && diffDays !== 0) return false
+          if (dateFilter === 'YESTERDAY' && diffDays !== 1) return false
+          if (dateFilter === 'LAST_7_DAYS' && (diffDays < 0 || diffDays > 7)) return false
+          if (
+            dateFilter === 'THIS_MONTH' &&
+            (itemDate.getMonth() !== now.getMonth() || itemDate.getFullYear() !== now.getFullYear())
+          )
+            return false
+        }
+      }
+
       return true
     })
-  }, [rows, filterTab, vipFilter, kycFilter])
+  }, [rows, filterTab, vipFilter, kycFilter, statusFilter, dateFilter])
 
   // VIP Badge Styling helper
   const getVipBadge = (level) => {
@@ -541,24 +633,69 @@ export default function Players() {
       ),
     },
     {
+      key: 'created_at',
+      label: 'Created Date & Time',
+      render: (r) => {
+        let d = r.created_at ? new Date(r.created_at) : null
+        let isValid = d && !isNaN(d.getTime())
+        let dateStr = isValid
+          ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : (r.created_at || 'N/A')
+        let timeStr = isValid
+          ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+          : ''
+        return (
+          <div className="min-w-[140px] font-mono">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+              <Calendar size={12} className="text-blue-500 shrink-0" />
+              <span>{dateStr}</span>
+            </div>
+            {timeStr && (
+              <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
+                <Clock size={11} className="text-slate-400 shrink-0" />
+                <span>{timeStr}</span>
+              </div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
       key: 'status',
-      label: 'Status',
-      render: (r) => (
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${
-            r.status === 'Active'
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              : 'bg-rose-50 text-rose-700 border border-rose-200'
-          }`}
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              r.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
-            }`}
-          />
-          {r.status}
-        </span>
-      ),
+      label: 'Active / Deactive',
+      render: (r) => {
+        const isActive = r.status === 'Active'
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => togglePlayerStatus(r)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                isActive ? 'bg-emerald-500' : 'bg-slate-300'
+              }`}
+              title={isActive ? 'Click to Deactivate / Suspend' : 'Click to Activate'}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  isActive ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+            <span
+              className={`inline-flex items-center gap-1 text-xs font-bold ${
+                isActive ? 'text-emerald-700' : 'text-slate-400'
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                }`}
+              />
+              {isActive ? 'Active' : 'Deactive'}
+            </span>
+          </div>
+        )
+      },
     },
     {
       label: 'Actions',
@@ -720,6 +857,32 @@ export default function Players() {
 
           {/* Quick Dropdown Filters */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Status Filtration */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="input !w-auto !py-1.5 text-xs font-semibold"
+              title="Filter by Active/Deactive status"
+            >
+              <option value="ALL">All Status</option>
+              <option value="Active">Active Users</option>
+              <option value="Suspended">Deactive / Suspended</option>
+            </select>
+
+            {/* Date Range Filtration */}
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="input !w-auto !py-1.5 text-xs font-semibold"
+              title="Filter by Registration Date"
+            >
+              <option value="ALL">All Dates</option>
+              <option value="TODAY">Created Today</option>
+              <option value="YESTERDAY">Created Yesterday</option>
+              <option value="LAST_7_DAYS">Last 7 Days</option>
+              <option value="THIS_MONTH">This Month</option>
+            </select>
+
             <select
               value={vipFilter}
               onChange={(e) => setVipFilter(e.target.value)}
@@ -745,14 +908,16 @@ export default function Players() {
               <option value="Unverified">Unverified</option>
             </select>
 
-            {(vipFilter !== 'ALL' || kycFilter !== 'ALL' || filterTab !== 'ALL') && (
+            {(vipFilter !== 'ALL' || kycFilter !== 'ALL' || statusFilter !== 'ALL' || dateFilter !== 'ALL' || filterTab !== 'ALL') && (
               <button
                 onClick={() => {
                   setFilterTab('ALL')
                   setVipFilter('ALL')
                   setKycFilter('ALL')
+                  setStatusFilter('ALL')
+                  setDateFilter('ALL')
                 }}
-                className="btn-ghost !py-1.5 !px-2.5 text-xs text-rose-500 hover:bg-rose-50"
+                className="btn-ghost !py-1.5 !px-2.5 text-xs text-rose-500 hover:bg-rose-50 cursor-pointer"
               >
                 Reset Filters
               </button>

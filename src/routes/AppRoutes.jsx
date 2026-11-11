@@ -1,52 +1,54 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { DashboardLayout } from '@/layouts'
-import {
-  Dashboard,
-  Attendance,
-  Players,
-  FundTransfer,
-  FundTransferAdd,
-  FundTransferHistory,
-  VipLevels,
-  IllegalBets,
-  SystemUsers,
-  IpLogs,
-  Aviator,
-  AviatorSettings,
-  MlmLevels,
-  Salary,
-  ColourPrediction,
-  ChickenMultiplier,
-  ChickenBetHistory,
-  ChickenBetValues,
-  ChickenAmountSetup,
-  Gift,
-  Offer,
-  Banners,
-  Feedback,
-  PaymentsLimit,
-  Deposit,
-  DepositPending,
-  DepositSuccess,
-  DepositReject,
-  Withdrawal,
-  WithdrawalPending,
-  WithdrawalApproved,
-  WithdrawalReject,
-  CustomerService,
-  ProfitLoss,
-  Support,
-  Simple,
-  HorseRiding,
-  InHouseGames,
-  ThirdPartyGames,
-  Login,
-} from '@/pages'
-import GiftHistory from '@/pages/Gift/GiftHistory'
+
+const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const Attendance = lazy(() => import('@/pages/Attendance'))
+const Players = lazy(() => import('@/pages/Players'))
+const FundTransferAdd = lazy(() => import('@/pages/FundTransfer/FundTransferAdd').then((m) => ({ default: m.default })))
+const FundTransferHistory = lazy(() => import('@/pages/FundTransfer/FundTransferHistory').then((m) => ({ default: m.default })))
+const VipLevels = lazy(() => import('@/pages/VipLevels'))
+const IllegalBets = lazy(() => import('@/pages/IllegalBets'))
+const SystemUsers = lazy(() => import('@/pages/SystemUsers'))
+const IpLogs = lazy(() => import('@/pages/IpLogs'))
+const Aviator = lazy(() => import('@/pages/Aviator'))
+const AviatorSettings = lazy(() => import('@/pages/AviatorSettings'))
+const MlmLevels = lazy(() => import('@/pages/MlmLevels'))
+const Salary = lazy(() => import('@/pages/Salary'))
+const ColourPrediction = lazy(() => import('@/pages/ColourPrediction'))
+const chickenPages = import('@/pages/Chicken')
+const ChickenMultiplier = lazy(() => chickenPages.then((m) => ({ default: m.ChickenMultiplier })))
+const ChickenBetHistory = lazy(() => chickenPages.then((m) => ({ default: m.ChickenBetHistory })))
+const ChickenBetValues = lazy(() => chickenPages.then((m) => ({ default: m.ChickenBetValues })))
+const ChickenAmountSetup = lazy(() => chickenPages.then((m) => ({ default: m.ChickenAmountSetup })))
+const Gift = lazy(() => import('@/pages/Gift'))
+const GiftHistory = lazy(() => import('@/pages/Gift/GiftHistory'))
+const Offer = lazy(() => import('@/pages/Offer'))
+const Banners = lazy(() => import('@/pages/Banners'))
+const Feedback = lazy(() => import('@/pages/Feedback'))
+const PaymentsLimit = lazy(() => import('@/pages/PaymentsLimit'))
+const Deposit = lazy(() => import('@/pages/Deposit'))
+const DepositPending = lazy(() => import('@/pages/Deposit/DepositPending'))
+const DepositSuccess = lazy(() => import('@/pages/Deposit/DepositSuccess'))
+const DepositReject = lazy(() => import('@/pages/Deposit/DepositReject'))
+const Withdrawal = lazy(() => import('@/pages/Withdrawal'))
+const WithdrawalPending = lazy(() => import('@/pages/Withdrawal/WithdrawalPending'))
+const WithdrawalApproved = lazy(() => import('@/pages/Withdrawal/WithdrawalApproved'))
+const WithdrawalReject = lazy(() => import('@/pages/Withdrawal/WithdrawalReject'))
+const CustomerService = lazy(() => import('@/pages/CustomerService'))
+const ProfitLoss = lazy(() => import('@/pages/ProfitLoss'))
+const Support = lazy(() => import('@/pages/Support'))
+const Simple = lazy(() => import('@/pages/Simple'))
+const HorseRiding = lazy(() => import('@/pages/HorseRiding'))
+const StackTower = lazy(() => import('@/pages/StackTower'))
+const InHouseGames = lazy(() => import('@/pages/InHouseGames'))
+const ThirdPartyGames = lazy(() => import('@/pages/ThirdPartyGames'))
+const Login = lazy(() => import('@/pages/Login'))
 
 export default function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-slate-500">Loading page...</div>}>
+      <Routes>
       <Route path="login" element={<Login />} />
       <Route element={<DashboardLayout />}>
         <Route index element={<Dashboard />} />
@@ -71,6 +73,9 @@ export default function AppRoutes() {
         <Route path="chicken/bet-values" element={<ChickenBetValues />} />
         <Route path="chicken/amount-setup" element={<ChickenAmountSetup />} />
         <Route path="horse-riding" element={<HorseRiding />} />
+        <Route path="stack-tower" element={<StackTower />} />
+        <Route path="stack-tower/stats" element={<StackTower />} />
+        <Route path="stack-tower/control" element={<StackTower />} />
         <Route path="in-house-games" element={<InHouseGames />} />
         <Route path="third-party-games" element={<ThirdPartyGames />} />
         <Route path="jilli-bets" element={<Simple />} />
@@ -102,7 +107,8 @@ export default function AppRoutes() {
         <Route path="support" element={<Support />} />
         <Route path="*" element={<Simple />} />
       </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   )
 }
 

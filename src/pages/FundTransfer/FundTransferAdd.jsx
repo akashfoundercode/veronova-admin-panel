@@ -144,7 +144,7 @@ export default function FundTransferAdd() {
       }
     }
 
-    if (success || !lastErr) {
+    if (success && serverResponse) {
       const respData = serverResponse?.data || serverResponse || {}
       const createdEntry = {
         id: respData.id || respData['#'] || Math.max(0, ...rows.map((r) => r.id || 0)) + 1,

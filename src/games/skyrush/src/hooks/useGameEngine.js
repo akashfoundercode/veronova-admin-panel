@@ -3,6 +3,7 @@ import { generateCrashPoint, multiplierAtTime, RUNWAY_TAKEOFF_TIME } from '../ut
 import { generateRoundPlayers } from '../utils/playerPool'
 import { soundManager } from '../utils/audio'
 import { aviatorSocket } from '../services/aviatorSocket'
+import { SOCKET_CONFIG } from '@/constants/socketConfig'
 
 export const GAME_STATE = {
   COUNTDOWN: 'COUNTDOWN',
@@ -301,7 +302,7 @@ export function useGameEngine() {
     }
   }, [gameState, crashPoint])
 
-  // Subscribe to live socket events (https://fcsocket.site | demobdg_aviator)
+  // Subscribe to live socket events using the shared configured backend.
   useEffect(() => {
     const unsubscribe = aviatorSocket.subscribe((event) => {
       if (event.type === 'CONNECTION_CHANGE') {
@@ -320,7 +321,7 @@ export function useGameEngine() {
         setSocketStatus({
           connected: true,
           channel: 'demobdg_aviator',
-          serverUrl: 'https://fcsocket.site',
+          serverUrl: SOCKET_CONFIG.AVIATOR.URL,
           lastPacket: packet,
         })
 

@@ -421,7 +421,7 @@ export default function CustomerService({ activeCategory = null }) {
       password: item.password || item.new_password || 'Admin@Pass#2026',
       bdg_win_id: item.bdg_win_id || item.bdg_id || item.game_uid || item.user_id || 'BDG_88201',
       usdt_address: item.usdt_address || item.address || item.wallet_address || 'TL9u441XzQ771vMPpo89aKk21vM',
-      new_usdt_address: item.new_usdt_address || item.usdt_address || item.new_address || 'TX9rZ8vKpLmN2Q44b1x9wEr55TaZ1',
+      new_usdt_address: item.photo_new_usdt_address || item.new_usdt_address || item.usdt_address || item.new_address || null,
       description: item.description || item.message || item.issue || item.detail || 'Pending review by administration.',
       remarks: item.remarks || item.admin_remarks || 'Approved by Admin',
       status: statusLabel,
@@ -430,19 +430,22 @@ export default function CustomerService({ activeCategory = null }) {
       created_at: item.created_at || item.createdAt || item.date || '16 Oct 2026 02:45 PM',
       submitted_at: item.submitted_at || item.created_at || item.date || '16 Oct 2026 02:45 PM',
       time: item.date || item.created_at || 'Recent',
-      // Document proof URLs
-      passbook: item.passbook || item.passbook_image || PROOF_IMAGES.passbook,
-      identity_card: item.identity_card || item.id_card || item.govt_card || PROOF_IMAGES.govt_card,
-      deposit_proof: item.deposit_proof || item.deposit_receipt || PROOF_IMAGES.deposit_proof_1,
-      deposit_receipt: item.deposit_receipt || item.deposit_proof || PROOF_IMAGES.deposit_proof_1,
-      deposit_proof_1: item.deposit_proof_1 || item.proof1 || PROOF_IMAGES.deposit_proof_1,
-      deposit_proof_2: item.deposit_proof_2 || item.proof2 || PROOF_IMAGES.deposit_proof_2,
-      selfie_passbook: item.selfie_passbook || item.selfie_with_passbook || PROOF_IMAGES.selfie_passbook,
-      selfie_id: item.selfie_id || item.selfie_with_id || PROOF_IMAGES.selfie_id,
-      screenshot: item.screenshot || item.proof || PROOF_IMAGES.screenshot,
-      image: item.image || item.screenshot || PROOF_IMAGES.screenshot,
-      govt_card: item.govt_card || item.pan_card || item.identity_card || PROOF_IMAGES.govt_card,
-      aadhar: item.aadhar || item.aadhaar || PROOF_IMAGES.aadhar,
+      // Document proof URLs - map directly from backend schema, do not inject fake sample images
+      passbook: item.passbook_photo || item.passbook || item.passbook_image || null,
+      identity_card: item.identity_card_photo || item.identity_card || item.id_card || item.photo_government_card || null,
+      deposit_proof: item.last_deposit_proof || item.deposit_proof || item.deposit_receipt || item.deposit_proof_recipt || null,
+      deposit_receipt: item.latest_deposit_receipt || item.deposit_receipt || item.last_deposit_proof || null,
+      deposit_proof_1: item.photo_deposit_proof1 || item.deposit_proof_1 || item.depositProof || null,
+      deposit_proof_2: item.photo_deposit_proof2 || item.deposit_proof_2 || null,
+      selfie_passbook: item.photo_selfie_hold_passbook || item.selfie_passbook || null,
+      selfie_id: item.photo_selfie_hold_identity_card || item.selfie_id || item.selfieId || null,
+      selfie_usdt: item.selfie_usdt || item.selfieUsdt || null,
+      screenshot: item.screenshot_bdgwin_id || item.screenshot || item.image || null,
+      image: item.image || item.screenshot || null,
+      govt_card: item.photo_government_card || item.govt_card || item.identity_card_photo || null,
+      aadhar: item.photo_adhaar_card || item.aadhar || item.aadhaar || null,
+      video: item.bank_transaction_video || null,
+      statement: item.pdf_bank_statement || null,
       region: item.region || (item.country?.toLowerCase().includes('india') || item.is_indian !== false ? 'Indian' : 'Non-Indian'),
       wallet_type: item.wallet_type || item.network || 'TRC20',
       exchange: item.exchange || item.platform || 'Binance',
@@ -548,21 +551,19 @@ export default function CustomerService({ activeCategory = null }) {
       }
 
       const next = rows.map((r) =>
-        r.id === ticket.id ? { ...r, status: statusLabel, rawStatus: statusCode, remarks } : r
+        r.id === ticket.id && r.category === ticket.category
+          ? { ...r, status: statusLabel, rawStatus: statusCode, remarks }
+          : r
       )
       persist(next)
       toast(`Record #${ticket.id} updated: ${statusLabel}!`, 'success')
 
-      if (selectedTicket?.id === ticket.id) {
+      if (selectedTicket?.id === ticket.id && selectedTicket?.category === ticket.category) {
         setSelectedTicket({ ...selectedTicket, status: statusLabel, rawStatus: statusCode, remarks })
       }
     } catch (err) {
       console.warn('API approve error:', err)
-      const next = rows.map((r) =>
-        r.id === ticket.id ? { ...r, status: statusLabel, rawStatus: statusCode, remarks } : r
-      )
-      persist(next)
-      toast(`Updated #${ticket.id} to ${statusLabel} (Local): ${err.message}`, 'info')
+      toast(`Failed to update status on server: ${err.message || 'Server error'}`, 'error')
     } finally {
       setIsSubmitting(false)
     }

@@ -3,7 +3,7 @@ import {
   Trophy, Flag, Zap, Clock, Sliders, CheckCircle2, AlertCircle,
   FileSpreadsheet, Play, Pause, RefreshCw, Crown, Users, BarChart3,
   Flame, ShieldAlert, Sparkles, Dices, Radio, Coins, Layers, CircleDollarSign,
-  Power, Check
+  Power, Check, ChevronDown
 } from 'lucide-react'
 import { io } from 'socket.io-client'
 import DataTable, { exportCSV } from '@/components/DataTable'
@@ -116,7 +116,14 @@ export default function HorseRiding() {
   const [countdown, setCountdown] = useState(30)
   const [timeRemaining, setTimeRemaining] = useState(null)
   const [stageDescription, setStageDescription] = useState('Connecting to Live Derby Server...')
-  const [jackpotInfo, setJackpotInfo] = useState(null)
+  const [jackpotInfo, setJackpotInfo] = useState(() => {
+    try {
+      const saved = localStorage.getItem('horse_jackpot_info')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
   const [leaderInfo, setLeaderInfo] = useState(null)
   const [liveHorsesData, setLiveHorsesData] = useState({})
   
@@ -131,17 +138,42 @@ export default function HorseRiding() {
       return null
     }
   })
+  const [selectedWinnerChoice, setSelectedWinnerChoice] = useState(() => (predeterminedWinner ? String(predeterminedWinner) : ''))
+
+  useEffect(() => {
+    setSelectedWinnerChoice(predeterminedWinner ? String(predeterminedWinner) : '')
+  }, [predeterminedWinner])
   const [winningPodium, setWinningPodium] = useState(null)
 
-  // Realtime Live Betting Activity state (bets per horse 1-12)
+  // Realtime Live Betting Activity state (bets per horse 1-12 & 12-horses live pool)
   const [horseBets, setHorseBets] = useState(() => {
     const init = {}
     for (let i = 1; i <= 12; i++) init[i] = 0
     return init
   })
+  const [totalLivePoolPot, setTotalLivePoolPot] = useState(0)
+
+  // Realtime Live Bet Alert (Ticker) state (socket.on: bet:live)
+  const [latestLiveBet, setLatestLiveBet] = useState(null)
+  const [liveBetsTicker, setLiveBetsTicker] = useState([])
+
   const [jackpotQueueStatus, setJackpotQueueStatus] = useState(null)
-  const [selectedMultiplier, setSelectedMultiplier] = useState(3)
-  const [selectedJackpotMode, setSelectedJackpotMode] = useState('CONTINUOUS')
+  const [selectedMultiplier, setSelectedMultiplier] = useState(() => {
+    try {
+      const saved = localStorage.getItem('horse_jackpot_multiplier')
+      return saved ? Number(saved) : 3
+    } catch {
+      return 3
+    }
+  })
+  const [selectedJackpotMode, setSelectedJackpotMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('horse_jackpot_mode')
+      return saved || 'CONTINUOUS'
+    } catch {
+      return 'CONTINUOUS'
+    }
+  })
 
   // Live Horse positions in percentage (0 to 100)
   const [positions, setPositions] = useState(() => Array(12).fill(0))
@@ -151,7 +183,8 @@ export default function HorseRiding() {
   const [isSyncing, setIsSyncing] = useState(false)
 
   // Total active pool calculated from live bets on all 12 horses
-  const totalLiveBetsPool = Object.values(horseBets).reduce((acc, curr) => acc + (Number(curr) || 0), 0)
+  const calculatedBetsPool = Object.values(horseBets).reduce((acc, curr) => acc + (Number(curr) || 0), 0)
+  const totalLiveBetsPool = Math.max(totalLivePoolPot, calculatedBetsPool)
 
   // High-performance animation refs for 60FPS LERP & dead reckoning
   const socketRef = useRef(null)
@@ -161,12 +194,16 @@ export default function HorseRiding() {
   const predeterminedWinnerRef = useRef(predeterminedWinner)
   predeterminedWinnerRef.current = predeterminedWinner
 
+  const jackpotInfoRef = useRef(jackpotInfo)
+  jackpotInfoRef.current = jackpotInfo
+
   const targetPositionsRef = useRef(Array(12).fill(0))
   const renderedPositionsRef = useRef(Array(12).fill(0))
   const horseSpeedsRef = useRef(Array(12).fill(55)) // in km/h
   const liveHorsesDataRef = useRef({})
   const lastFrameTimeRef = useRef(performance.now())
   const lastUiUpdateRef = useRef(0)
+  const handleBetPoolUpdateRef = useRef(null)
 
   // 60FPS RAF Interpolation Engine (Eliminates all stutter & jitter)
   useEffect(() => {
@@ -175,7 +212,14 @@ export default function HorseRiding() {
       const dt = Math.min(0.1, (now - lastFrameTimeRef.current) / 1000)
       lastFrameTimeRef.current = now
 
-      if (raceStateRef.current === 'RACING') {
+      // Animate if RACING state or if any target position has received live socket movement
+      const hasTargetMovement = targetPositionsRef.current.some((t) => t > 0.5)
+      if (raceStateRef.current === 'RACING' || hasTargetMovement) {
+        if (raceStateRef.current !== 'RACING' && hasTargetMovement) {
+          raceStateRef.current = 'RACING'
+          setRaceState('RACING')
+        }
+
         const current = renderedPositionsRef.current
         const targets = targetPositionsRef.current
         const speeds = horseSpeedsRef.current
@@ -190,7 +234,7 @@ export default function HorseRiding() {
 
           if (Math.abs(diff) > 0.05) {
             // Smooth exponential blend towards verified socket target position
-            const catchupSpeed = diff > 0 ? 10 : 5
+            const catchupSpeed = diff > 0 ? 12 : 6
             next[i] = cur + diff * Math.min(1, dt * catchupSpeed)
             hasMoved = true
           } else if (tgt > 0 && tgt < 99.5) {
@@ -264,6 +308,14 @@ export default function HorseRiding() {
       setIsSyncing(false)
       toast('Connected to Live Horse Racing Engine!')
 
+      // Request Current Bet Pool Snapshot immediately on connect (socket.emit: get:bet_pool)
+      socket.emit('get:bet_pool', (pool) => {
+        if (pool) handleBetPoolUpdateRef.current?.(pool)
+      })
+      socket.emit('race:get_bet_pool', (pool) => {
+        if (pool) handleBetPoolUpdateRef.current?.(pool)
+      })
+
       // Sync persistent forced winner to server on connect
       if (predeterminedWinnerRef.current) {
         const forcedHorse = HORSES_DATA.find((x) => x.id === predeterminedWinnerRef.current)
@@ -281,6 +333,26 @@ export default function HorseRiding() {
           })
         }
       }
+
+      // Sync persistent active jackpot to server on connect (Preserves across refresh!)
+      if (jackpotInfoRef.current?.isJackpot || jackpotInfoRef.current?.enabled) {
+        const mult = Number(jackpotInfoRef.current.multiplier || 3)
+        const multLabel = jackpotInfoRef.current.multiplierLabel || `${mult}X`
+        const mode = jackpotInfoRef.current.mode || 'CONTINUOUS'
+        socket.emit(HORSE_RACING_EVENTS.ADMIN_SET_JACKPOT, {
+          enabled: true,
+          multiplier: mult,
+          multiplierLabel: multLabel,
+          mode,
+          token: auth.getToken(),
+        })
+        socket.emit(HORSE_RACING_EVENTS.ADMIN_FORCE_JACKPOT, {
+          enabled: true,
+          multiplier: mult,
+          multiplierLabel: multLabel,
+          mode,
+        })
+      }
     })
 
     socket.on('disconnect', () => {
@@ -297,7 +369,25 @@ export default function HorseRiding() {
       if (!data) return
       if (data.gameSerial) setRaceNo(String(data.gameSerial))
       if (data.stageDescription) setStageDescription(data.stageDescription)
-      if (data.jackpot) setJackpotInfo(data.jackpot)
+      if (data.jackpot) {
+        if (data.jackpot.isJackpot || data.jackpot.enabled) {
+          const info = {
+            isJackpot: true,
+            enabled: true,
+            multiplier: Number(data.jackpot.multiplier || 3),
+            multiplierLabel: data.jackpot.multiplierLabel || `${data.jackpot.multiplier || 3}X`,
+            label: data.jackpot.label || `${data.jackpot.multiplier || 3}X`,
+            mode: data.jackpot.mode || 'CONTINUOUS',
+            message: data.jackpot.message || `🔥 JACKPOT ACTIVE: ${data.jackpot.multiplier || 3}X PAYOUT!`,
+          }
+          setJackpotInfo(info)
+          try {
+            localStorage.setItem('horse_jackpot_info', JSON.stringify(info))
+          } catch {}
+        } else if (!jackpotInfoRef.current?.enabled && !jackpotInfoRef.current?.isJackpot) {
+          setJackpotInfo(data.jackpot)
+        }
+      }
 
       if (data.status === 'RUNNING') {
         setRaceState('RACING')
@@ -327,6 +417,21 @@ export default function HorseRiding() {
         renderedPositionsRef.current = Array(12).fill(0)
         setPositions(Array(12).fill(0))
       }
+
+      // Populate live per-horse bets snapshot if present in current state or pool
+      const stateHorses = data.horses || data.pool?.horses
+      if (Array.isArray(stateHorses) && stateHorses.length > 0) {
+        setHorseBets((prev) => {
+          const next = { ...prev }
+          stateHorses.forEach((h) => {
+            const s = Number(h.serialNumber || h.serial_number || h.horseSerial || h.horse_serial || h.id)
+            if (s >= 1 && s <= 12) {
+              next[s] = Number(h.totalBetsAmount ?? h.totalBets ?? h.betAmount ?? h.amount ?? 0)
+            }
+          })
+          return next
+        })
+      }
     })
 
     // 2. Betting Open / Race Created
@@ -335,7 +440,25 @@ export default function HorseRiding() {
       setRaceState('WAITING')
       if (data.gameSerial) setRaceNo(String(data.gameSerial))
       if (data.stageDescription) setStageDescription(data.stageDescription)
-      if (data.jackpot) setJackpotInfo(data.jackpot)
+      if (data.jackpot) {
+        if (data.jackpot.isJackpot || data.jackpot.enabled) {
+          const info = {
+            isJackpot: true,
+            enabled: true,
+            multiplier: Number(data.jackpot.multiplier || 3),
+            multiplierLabel: data.jackpot.multiplierLabel || `${data.jackpot.multiplier || 3}X`,
+            label: data.jackpot.label || `${data.jackpot.multiplier || 3}X`,
+            mode: data.jackpot.mode || 'CONTINUOUS',
+            message: data.jackpot.message || `🔥 JACKPOT ACTIVE: ${data.jackpot.multiplier || 3}X PAYOUT!`,
+          }
+          setJackpotInfo(info)
+          try {
+            localStorage.setItem('horse_jackpot_info', JSON.stringify(info))
+          } catch {}
+        } else if (!jackpotInfoRef.current?.enabled && !jackpotInfoRef.current?.isJackpot) {
+          setJackpotInfo(data.jackpot)
+        }
+      }
 
       // Re-emit forced winner on every fresh race round so it remains active continuously
       if (predeterminedWinnerRef.current) {
@@ -371,50 +494,160 @@ export default function HorseRiding() {
     }
     socket.on(HORSE_RACING_EVENTS.BETTING_OPEN, handleBettingOpen)
     socket.on(HORSE_RACING_EVENTS.CREATED, handleBettingOpen)
+    socket.on('race:betting_open', handleBettingOpen)
+    socket.on('race:created', handleBettingOpen)
 
-    // 3. Betting Closed
-    socket.on(HORSE_RACING_EVENTS.BETTING_CLOSED, (data) => {
+    // 3. Betting Closed (5s countdown with real-time socket tick support)
+    const handleBettingClosed = (data) => {
       setRaceState('BETTING_CLOSED')
-      setStageDescription(data?.message || 'Betting Closed. Countdown in 5s')
-      setCountdown(data?.secondsRemaining || 5)
-    })
+      raceStateRef.current = 'BETTING_CLOSED'
+      const sec = data?.secondsRemaining ?? data?.countdown ?? data?.timeRemainingSec ?? 5
+      setCountdown(Math.max(0, Math.round(Number(sec))))
+      setStageDescription(data?.message || `Betting Closed. Race Countdown in ${sec}s`)
+    }
+    socket.on(HORSE_RACING_EVENTS.BETTING_CLOSED, handleBettingClosed)
+    socket.on(HORSE_RACING_EVENTS.BETTING_CLOSED_TIC, handleBettingClosed)
+    socket.on('race:betting_closed_tick', handleBettingClosed)
+    socket.on('race:betting_closed_tic', handleBettingClosed)
+    socket.on('race:betting_closed', handleBettingClosed)
 
-    // 4. Countdown Tick (3, 2, 1)
-    socket.on(HORSE_RACING_EVENTS.COUNTDOWN_TICK, (data) => {
-      if (data?.countdown !== undefined) {
-        setCountdown(data.countdown)
-        setStageDescription(`Gate opens in ${data.countdown}s!`)
+    // 4. Countdown Tick (3, 2, 1, 'GO')
+    const handleCountdownTick = (data) => {
+      if (!data) return
+      const count = data.countdown
+      if (count !== undefined) {
+        if (count === 'GO' || count === 0) {
+          setRaceState('RACING')
+          raceStateRef.current = 'RACING'
+          setCountdown(0)
+          setStageDescription('Gates Open! Race is ON!')
+        } else {
+          setRaceState('COUNTDOWN')
+          raceStateRef.current = 'COUNTDOWN'
+          setCountdown(count)
+          setStageDescription(`Gate opens in ${count}s!`)
+        }
       }
-    })
+    }
+    socket.on(HORSE_RACING_EVENTS.COUNTDOWN_TICK, handleCountdownTick)
+    socket.on('race:countdown_tick', handleCountdownTick)
 
-    // 5. High Precision Track Update (Streamlined single listener)
+    // 4b. Live Race State Transition Listener
+    const handleStateChanged = (data) => {
+      if (!data) return
+      if (data.gameSerial) setRaceNo(String(data.gameSerial))
+      const status = data.status || data.stage || data.state
+      if (status === 'RUNNING' || status === 'RACING') {
+        setRaceState('RACING')
+        raceStateRef.current = 'RACING'
+        if (data.timeRemainingSec !== undefined) setTimeRemaining(Math.round(data.timeRemainingSec))
+        if (data.elapsedSec !== undefined) setRaceElapsed(Math.round(data.elapsedSec))
+        setStageDescription('1000M Thoroughbred Championship Course · Live')
+      } else if (status === 'BETTING_CLOSED') {
+        setRaceState('BETTING_CLOSED')
+        raceStateRef.current = 'BETTING_CLOSED'
+        const sec = data.timeRemainingSec ?? data.secondsRemaining ?? 5
+        setCountdown(Math.round(Number(sec)))
+        setStageDescription(`Betting Closed. Countdown in ${sec}s`)
+      } else if (status === 'COUNTDOWN') {
+        setRaceState('COUNTDOWN')
+        raceStateRef.current = 'COUNTDOWN'
+        if (data.countdown !== undefined) setCountdown(data.countdown)
+      } else if (status === 'RESULT' || status === 'FINISHED') {
+        setRaceState('FINISHED')
+        raceStateRef.current = 'FINISHED'
+      } else if (status === 'WAITING' || status === 'BETTING_OPEN') {
+        setRaceState('WAITING')
+        raceStateRef.current = 'WAITING'
+        if (data.timeRemainingSec) setCountdown(Math.round(data.timeRemainingSec))
+      }
+    }
+    socket.on(HORSE_RACING_EVENTS.STATE_CHANGED, handleStateChanged)
+    socket.on('race:state_changed', handleStateChanged)
+    socket.on('race:state_change', handleStateChanged)
+
+    // 5. High Precision Track Update (Receives live distance and progress from socket)
     const handleTrackUpdate = (data) => {
       if (!data) return
       if (data.gameSerial) setRaceNo(String(data.gameSerial))
-      if (data.stage === 'RUNNING' && raceStateRef.current !== 'RACING') {
+
+      // Always guarantee RACING state immediately when track updates arrive
+      if (raceStateRef.current !== 'RACING') {
         setRaceState('RACING')
+        raceStateRef.current = 'RACING'
+      }
+
+      // Live Remaining Time & Elapsed Sync directly from socket packet
+      const remainingSec = data.timeRemainingSec ?? data.timeRemaining ?? data.remainingSec ?? data.time_remaining
+      if (remainingSec !== undefined) {
+        setTimeRemaining(Math.max(0, Math.round(Number(remainingSec))))
+      }
+      if (data.elapsedSec !== undefined) {
+        setRaceElapsed(Math.round(Number(data.elapsedSec)))
       }
 
       // Throttle non-critical UI stats updates to 4 times per second to prevent React DOM lag
       const now = performance.now()
       if (now - lastUiUpdateRef.current > 250) {
         lastUiUpdateRef.current = now
-        if (data.elapsedSec !== undefined) setRaceElapsed(Math.round(data.elapsedSec))
-        if (data.timeRemainingSec !== undefined) setTimeRemaining(Math.round(data.timeRemainingSec))
         if (data.leader) setLeaderInfo(data.leader)
         setLiveHorsesData({ ...liveHorsesDataRef.current })
       }
 
-      // Feed targets to RAF interpolation engine
-      if (Array.isArray(data.horses)) {
-        data.horses.forEach((h) => {
-          const serial = h.serialNumber || h.lane || 1
+      // Feed distance & targets to 60FPS RAF interpolation engine
+      const horseList = Array.isArray(data.horses)
+        ? data.horses
+        : Array.isArray(data)
+        ? data
+        : (data.rankedHorses || [])
+
+      if (Array.isArray(horseList) && horseList.length > 0) {
+        horseList.forEach((h) => {
+          // Resolve horse number / serial (1 to 12)
+          const serial = Number(h.serialNumber || h.serial_number || h.horseSerial || h.horse_serial || h.lane || h.id || 1)
           const idx = serial - 1
           if (idx >= 0 && idx < 12) {
-            const target = h.progressPercent !== undefined ? h.progressPercent : Math.min(100, (h.currentDistanceM || 0) / 10)
-            targetPositionsRef.current[idx] = target
-            if (h.speedKmh) horseSpeedsRef.current[idx] = h.speedKmh
-            liveHorsesDataRef.current[serial] = h
+            // Extract progress percentage reliably from distance or progress fields
+            let progress = undefined
+
+            // 1. Direct percentage fields
+            if (h.progressPercent !== undefined && h.progressPercent !== null) {
+              progress = Number(h.progressPercent)
+            } else if (h.percent !== undefined && h.percent !== null) {
+              progress = Number(h.percent)
+            } else if (h.progress !== undefined && h.progress !== null) {
+              const p = Number(h.progress)
+              progress = p <= 1 ? p * 100 : p
+            }
+
+            // 2. Distance fields (currentDistanceM, distanceCovered, distance, dist, distanceM like "250M")
+            if (progress === undefined) {
+              const rawDist = h.currentDistanceM ?? h.distanceCovered ?? h.distance ?? h.dist ?? h.distanceM
+              if (rawDist !== undefined && rawDist !== null) {
+                const distNum = typeof rawDist === 'number'
+                  ? rawDist
+                  : parseFloat(String(rawDist).replace(/[^0-9.]/g, '')) || 0
+                const totalDist = data.totalDistance
+                  ? (parseFloat(String(data.totalDistance).replace(/[^0-9.]/g, '')) || 1000)
+                  : 1000
+                progress = (distNum / totalDist) * 100
+              }
+            }
+
+            if (progress !== undefined && !isNaN(progress)) {
+              const target = Math.min(100, Math.max(0, progress))
+              targetPositionsRef.current[idx] = target
+            }
+
+            const spd = Number(h.speedKmh || h.speed || h.speed_kmh)
+            if (spd && !isNaN(spd)) horseSpeedsRef.current[idx] = spd
+
+            liveHorsesDataRef.current[serial] = {
+              ...h,
+              currentRank: h.currentRank || h.rank || (idx + 1),
+              speedKmh: spd || horseSpeedsRef.current[idx] || 55,
+              status: h.status || 'PACK',
+            }
           }
         })
 
@@ -453,8 +686,11 @@ export default function HorseRiding() {
         }
       }
     }
-    // Only listen to TRACK_UPDATE (avoids duplicate 2x churn from running_track)
+    // Bind all track update channel events emitted by backend
     socket.on(HORSE_RACING_EVENTS.TRACK_UPDATE, handleTrackUpdate)
+    socket.on(HORSE_RACING_EVENTS.RUNNING_TRACK, handleTrackUpdate)
+    socket.on('race:track_update', handleTrackUpdate)
+    socket.on('race:running_track', handleTrackUpdate)
 
     // 6. Race Result
     socket.on(HORSE_RACING_EVENTS.RESULT, (data) => {
@@ -558,29 +794,71 @@ export default function HorseRiding() {
     socket.on(HORSE_RACING_EVENTS.RACE_SET_FORCED_WINNER, handleForcedWinnerConfirmed)
     socket.on(HORSE_RACING_EVENTS.RACE_FORCE_WINNER, handleForcedWinnerConfirmed)
 
-    // 10. Live Bets Activity ({ totalBets: 45000, horseSerial: 6 })
-    socket.on(HORSE_RACING_EVENTS.LIVE_BET, (data) => {
+    // 10. Live Bet Alert (Ticker) (socket.on: bet:live & admin:bet_live)
+    const handleLiveBet = (data) => {
       if (!data) return
-      const serial = Number(data.horseSerial || data.serialNumber || data.horseId)
-      const total = Number(data.totalBets !== undefined ? data.totalBets : (data.amount || data.betAmount || 0))
+      const serial = Number(
+        data.horseSerial || data.horse_serial || data.serialNumber || data.serial_number || data.horseId || data.horse || 1
+      )
+      const singleWager = Number(
+        data.amount || data.betAmount || (data.totalBets ? Math.floor(data.totalBets * 0.15) : 500)
+      )
+      const uname =
+        data.username || data.userName || data.user_name || data.displayName || `Player_${Math.floor(100 + Math.random() * 900)}`
+      const actionType = data.action || 'Placed Bet'
+      const targetHorse = HORSES_DATA.find((h) => h.serialNumber === serial) || HORSES_DATA[serial - 1] || HORSES_DATA[0]
 
-      if (serial >= 1 && serial <= 12) {
+      const alertItem = {
+        id: data.id || `${Date.now()}_${Math.random()}`,
+        ticketId: data.ticketId || `TKT_${String(Math.floor(1000 + Math.random() * 9000))}`,
+        horseSerial: serial,
+        horseNumber: targetHorse.number,
+        horseName: targetHorse.name,
+        horseColor: targetHorse.color,
+        amount: singleWager,
+        action: actionType,
+        username: uname,
+        odds: `${data.odds || targetHorse.odds}x`,
+        time: 'Just now',
+        timestamp: Date.now(),
+      }
+
+      setLatestLiveBet(alertItem)
+      setLiveBetsTicker((prev) => [alertItem, ...prev.slice(0, 19)])
+
+      // Update horseBets breakdown from horses array or single horse total
+      if (Array.isArray(data.horses) && data.horses.length > 0) {
+        setHorseBets((prev) => {
+          const next = { ...prev }
+          data.horses.forEach((h) => {
+            const s = Number(h.serialNumber || h.serial_number || h.horseSerial || h.horse_serial || h.id)
+            if (s >= 1 && s <= 12) {
+              next[s] = Number(h.totalBetsAmount ?? h.totalBets ?? h.betAmount ?? h.amount ?? 0)
+            }
+          })
+          return next
+        })
+      } else if (serial >= 1 && serial <= 12 && singleWager > 0) {
         setHorseBets((prev) => ({
           ...prev,
-          [serial]: total,
+          [serial]: (Number(prev[serial]) || 0) + singleWager,
         }))
+        setTotalLivePoolPot((prev) => (Number(prev) || 0) + singleWager)
+      }
 
-        const targetHorse = HORSES_DATA.find((h) => h.serialNumber === serial) || HORSES_DATA[serial - 1]
-        const singleWager = data.amount || data.betAmount || Math.floor((data.totalBets || 1000) * 0.15) || 500
+      if (data.pool) {
+        handleBetPoolUpdate(data.pool)
+      }
 
+      if (serial >= 1 && serial <= 12) {
         setUserBets((prev) => [
           {
-            id: Date.now() + Math.random(),
-            ticketId: `TKT_${String(Math.floor(1000 + Math.random() * 9000))}`,
-            user: data.username || data.userName || `Player_${Math.floor(100 + Math.random() * 900)}`,
+            id: alertItem.id,
+            ticketId: alertItem.ticketId,
+            user: uname,
             horse: `${targetHorse.name} (#${targetHorse.number})`,
             amount: singleWager,
-            odds: `${targetHorse.odds}x`,
+            odds: alertItem.odds,
             payout: 0,
             status: 'Pending',
             time: 'Just now',
@@ -588,10 +866,75 @@ export default function HorseRiding() {
           ...prev.slice(0, 49),
         ])
       }
-    })
+    }
+    // 3. admin:bet_live & bet:live
+    socket.on(HORSE_RACING_EVENTS.LIVE_BET, handleLiveBet)
+    socket.on('bet:live', handleLiveBet)
+    socket.on('admin:bet_live', handleLiveBet)
+
+    // 11. 12 Horses Live Pool Updates (socket.on: race:bet_pool_update)
+    const handleBetPoolUpdate = (poolData) => {
+      if (!poolData) return
+      if (poolData.totalPot !== undefined) {
+        setTotalLivePoolPot(Number(poolData.totalPot) || 0)
+      } else if (poolData.pool?.totalPot !== undefined) {
+        setTotalLivePoolPot(Number(poolData.pool.totalPot) || 0)
+      }
+
+      const list = poolData.horses || poolData.pool?.horses || (Array.isArray(poolData) ? poolData : null)
+      if (Array.isArray(list)) {
+        setHorseBets((prev) => {
+          const next = { ...prev }
+          list.forEach((h) => {
+            const s = Number(h.serialNumber || h.serial_number || h.horseSerial || h.horse_serial || h.id)
+            if (s >= 1 && s <= 12) {
+              next[s] = Number(h.totalBetsAmount ?? h.totalBets ?? h.betAmount ?? h.amount ?? 0)
+            }
+          })
+          return next
+        })
+      } else if (poolData.horseBets && typeof poolData.horseBets === 'object') {
+        setHorseBets((prev) => ({ ...prev, ...poolData.horseBets }))
+      }
+    }
+    handleBetPoolUpdateRef.current = handleBetPoolUpdate
+
+    // 1. admin:bet_pool_update & race:bet_pool_update
+    socket.on('admin:bet_pool_update', handleBetPoolUpdate)
+    socket.on('race:bet_pool_update', handleBetPoolUpdate)
+
+    // 2. admin:horse_bets & horse:bets_update
+    socket.on('admin:horse_bets', handleBetPoolUpdate)
+    socket.on('horse:bets_update', handleBetPoolUpdate)
+    socket.on('horse_bets', handleBetPoolUpdate)
+
+    // 4. chips:update & pool:update
+    socket.on('chips:update', handleBetPoolUpdate)
+    socket.on('pool:update', handleBetPoolUpdate)
+    socket.on('bet:pool_update', handleBetPoolUpdate)
+    socket.on('race:pool', handleBetPoolUpdate)
 
     return socket
   }, [])
+
+  // Current Snapshot Request (socket.emit: get:bet_pool)
+  const requestBetPoolSnapshot = useCallback(() => {
+    if (!socketRef.current?.connected) {
+      toast('Connecting to live socket...')
+      initSocket()
+      return
+    }
+    toast('Fetching 12-horses live pool snapshot...')
+    socketRef.current.emit('get:bet_pool', (pool) => {
+      if (pool) {
+        handleBetPoolUpdateRef.current?.(pool)
+        toast(`Live pool synced: ₹${Number(pool.totalPot || 0).toLocaleString()}`)
+      }
+    })
+    socketRef.current.emit('race:get_bet_pool', (pool) => {
+      if (pool) handleBetPoolUpdateRef.current?.(pool)
+    })
+  }, [initSocket])
 
   useEffect(() => {
     const s = initSocket()
@@ -600,9 +943,9 @@ export default function HorseRiding() {
     }
   }, [initSocket])
 
-  // Local Countdown ticking timer for smooth second-by-second countdown in WAITING state
+  // Local Countdown ticking timer for smooth second-by-second countdown in WAITING and BETTING_CLOSED states
   useEffect(() => {
-    if (raceState !== 'WAITING' || isPaused) return
+    if ((raceState !== 'WAITING' && raceState !== 'BETTING_CLOSED') || isPaused) return
     if (countdown <= 0) return
     const timer = setTimeout(() => {
       setCountdown((c) => (c > 0 ? c - 1 : 0))
@@ -795,18 +1138,40 @@ export default function HorseRiding() {
         mode: enabled ? mode : 'OFF',
       })
     }
-    setJackpotInfo({
-      isJackpot: enabled,
-      enabled,
-      multiplier: enabled ? multiplier : 1,
-      multiplierLabel: multLabel,
-      label: multLabel,
-      mode: enabled ? mode : 'OFF',
-      message: enabled
-        ? `🔥 ADMIN JACKPOT: ${multLabel} PAYOUT (${mode === 'CONTINUOUS' ? 'Continuous Races' : 'Next Race Only'})`
-        : null,
-    })
-    toast(`Jackpot ${enabled ? `Activated (${multLabel} - ${mode})` : 'Turned OFF'}`)
+
+    if (enabled) {
+      const info = {
+        isJackpot: true,
+        enabled: true,
+        multiplier: Number(multiplier),
+        multiplierLabel: multLabel,
+        label: multLabel,
+        mode,
+        message: `🔥 ADMIN JACKPOT: ${multLabel} PAYOUT (${mode === 'CONTINUOUS' ? 'Continuous Races' : 'Next Race Only'})`,
+      }
+      setJackpotInfo(info)
+      try {
+        localStorage.setItem('horse_jackpot_info', JSON.stringify(info))
+        localStorage.setItem('horse_jackpot_multiplier', String(multiplier))
+        localStorage.setItem('horse_jackpot_mode', mode)
+      } catch {}
+      toast(`Jackpot Activated (${multLabel} - ${mode}) - Persists across refresh!`)
+    } else {
+      const offInfo = {
+        isJackpot: false,
+        enabled: false,
+        multiplier: 1,
+        multiplierLabel: '1X',
+        label: 'N',
+        mode: 'OFF',
+        message: null,
+      }
+      setJackpotInfo(offInfo)
+      try {
+        localStorage.removeItem('horse_jackpot_info')
+      } catch {}
+      toast('Jackpot Turned OFF')
+    }
   }
 
   // Query server jackpot queue status ('admin:jackpot_queue_status')
@@ -950,7 +1315,7 @@ export default function HorseRiding() {
             type="button"
             onClick={initSocket}
             className="inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-1.5 text-xs font-bold shadow-md transition cursor-pointer"
-            title="Re-sync with Live Socket: https://horseracing.siberiancrane.tech/"
+            title={`Re-sync with Live Socket: ${HORSE_RACING_SOCKET_URL}`}
           >
             <RefreshCw size={12} className={isSyncing ? 'animate-spin text-blue-400' : ''} />
             {isSyncing ? 'Syncing...' : 'Sync Engine'}
@@ -1031,7 +1396,7 @@ export default function HorseRiding() {
             </h3>
             <p className="text-[11px] text-slate-400 mt-0.5 truncate">
               {raceState === 'RACING'
-                ? `RACING: ${timeRemaining || Math.max(0, 20 - raceElapsed)}s left`
+                ? `RACING: ${timeRemaining !== null ? timeRemaining : Math.max(0, 20 - raceElapsed)}s left`
                 : raceState === 'BETTING_CLOSED'
                 ? `Countdown: ${countdown}s`
                 : raceState === 'FINISHED'
@@ -1068,7 +1433,7 @@ export default function HorseRiding() {
                     : 'bg-blue-600 text-white'
                 }`}>
                   {raceState === 'RACING'
-                    ? `⚡ LIVE DERBY (${timeRemaining || Math.max(0, 20 - raceElapsed)}s left)`
+                    ? `⚡ LIVE DERBY (${timeRemaining !== null ? timeRemaining : Math.max(0, 20 - raceElapsed)}s left)`
                     : raceState === 'BETTING_CLOSED'
                     ? `🔒 BETS CLOSED (Gates Open in ${countdown}s)`
                     : raceState === 'FINISHED'
@@ -1113,6 +1478,64 @@ export default function HorseRiding() {
             </button>
           </div>
         </div>
+
+        {/* Real-time Live Bet Alert (Ticker) */}
+        {latestLiveBet && (
+          <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-blue-500/40 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-white text-xs shadow-inner animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 overflow-hidden min-w-0">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="font-mono text-[9px] font-black uppercase tracking-wider bg-blue-600 px-2 py-0.5 rounded text-white shadow-xs shrink-0 flex items-center gap-1">
+                <Coins size={11} className="text-amber-300" /> LIVE BET ALERT
+              </span>
+              <span className="truncate text-slate-200 text-xs">
+                <strong className="text-white font-extrabold">{latestLiveBet.username}</strong>{' '}
+                <span className="text-slate-400">{latestLiveBet.action || 'placed bet of'}</span>{' '}
+                <strong className="text-amber-400 font-mono font-black">₹{Number(latestLiveBet.amount || 0).toLocaleString()}</strong> on{' '}
+                <span className="inline-flex items-center gap-1 font-bold text-white bg-slate-800/90 px-1.5 py-0.5 rounded border border-slate-700">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: latestLiveBet.horseColor || '#3b82f6' }}
+                  />
+                  Horse #{String(latestLiveBet.horseSerial).padStart(2, '0')} · {latestLiveBet.horseName} ({latestLiveBet.odds})
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">
+                ● Live Ticker
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">{latestLiveBet.time}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Live Bets Horizontal Ticker Stream */}
+        {liveBetsTicker.length > 0 && (
+          <div className="bg-slate-950/95 border-b border-slate-800 px-4 py-1.5 flex items-center gap-2 overflow-x-auto text-[11px] no-scrollbar">
+            <span className="text-[10px] font-mono font-black text-amber-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <Zap size={11} fill="currentColor" /> Live Feed:
+            </span>
+            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+              {liveBetsTicker.slice(0, 8).map((b) => (
+                <span
+                  key={b.id}
+                  className="inline-flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded text-slate-300 font-mono text-[10.5px] shrink-0"
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: b.horseColor }}
+                  />
+                  <strong className="text-white font-sans">{b.username}</strong>
+                  <span className="text-amber-400 font-bold">₹{b.amount.toLocaleString()}</span>
+                  <span className="text-slate-400">#{String(b.horseSerial).padStart(2, '0')}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Jackpot Announcement Bar (if active) */}
         {jackpotInfo?.isJackpot && (
@@ -1300,7 +1723,7 @@ export default function HorseRiding() {
         </div>
       </div>
 
-      {/* 12 RUNNERS LINEUP & ODDS CARDS */}
+      {/* 12 RUNNERS LINEUP & 12-HORSES LIVE BETTING POOL */}
       <div className="card bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
           <div className="flex items-center gap-2">
@@ -1309,17 +1732,33 @@ export default function HorseRiding() {
             </div>
             <div>
               <h4 className="text-sm font-black text-slate-900 tracking-tight">
-                Official 12-Runners Starting Stalls & Odds
+                Official 12-Runners Starting Stalls & 12-Horses Live Pool
               </h4>
               <p className="text-[11px] text-slate-500 font-medium">
-                Live field runner metrics, jockey assignments and platform payout multiples
+                Live field runner metrics, har horse pe live bet amount aur pool share (Socket: race:bet_pool_update)
               </p>
             </div>
           </div>
 
-          <span className="rounded-full bg-slate-100 text-slate-600 px-2.5 py-0.5 text-xs font-bold">
-            12 of 12 Loaded in Stalls
-          </span>
+          <div className="flex items-center gap-2">
+            <div className="rounded-xl bg-amber-50 border border-amber-300 px-3 py-1 flex items-center gap-1.5 shadow-2xs">
+              <Coins size={13} className="text-amber-600" />
+              <span className="text-[11px] font-bold text-amber-900">12 Horses Live Pool:</span>
+              <span className="text-xs font-black font-mono text-amber-950">
+                ₹{Number(totalLiveBetsPool).toLocaleString()}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={requestBetPoolSnapshot}
+              className="inline-flex items-center gap-1 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 px-3 py-1 text-xs font-bold text-slate-800 shadow-2xs transition cursor-pointer active:scale-95"
+              title="Request Current Bet Pool Snapshot (socket.emit: get:bet_pool)"
+            >
+              <RefreshCw size={12} className="text-blue-600" />
+              <span>Sync Pool</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
@@ -1375,7 +1814,7 @@ export default function HorseRiding() {
                   <div className="mt-2 pt-1.5 border-t border-slate-200/60 text-[10px]">
                     <div className="flex items-center justify-between text-slate-600 font-mono">
                       <span className="text-[9.5px] font-bold flex items-center gap-0.5 text-slate-500">
-                        <Coins size={10} className="text-amber-500" /> Bets:
+                        <Coins size={10} className="text-amber-500" /> Live Pool:
                       </span>
                       <span className="font-extrabold text-slate-900">
                         ₹{betAmt.toLocaleString()}
@@ -1450,48 +1889,83 @@ export default function HorseRiding() {
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <label className="text-[11px] font-bold text-slate-700 block">
               Select Guaranteed Winner (Persistent Across Races):
             </label>
-            <select
-              value={predeterminedWinner || ''}
-              onChange={(e) => {
-                const val = e.target.value ? parseInt(e.target.value) : null
-                handleForceWinner(val)
-              }}
-              className="input !text-xs font-bold w-full"
-            >
-              <option value="">Auto Provably Fair RNG (Natural Race)</option>
-              {HORSES_DATA.map((h) => (
-                <option key={h.id} value={h.id}>
-                  Horse #{h.number} - {h.name} (Jockey: {h.jockey} | Odds: {h.odds}x)
-                </option>
-              ))}
-            </select>
 
-            <div className="flex items-center gap-2 pt-1">
-              {predeterminedWinner ? (
-                <div className="w-full space-y-2">
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-xs text-emerald-800 font-bold flex items-center gap-2">
-                    <Crown size={14} className="text-amber-500 shrink-0" />
-                    <span>
-                      Horse #{HORSES_DATA.find((x) => x.id === predeterminedWinner)?.number} {HORSES_DATA.find((x) => x.id === predeterminedWinner)?.name} har race me sabse aage rahega jab tak aap reset na karein.
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleForceWinner(null)}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition shadow-2xs"
-                  >
-                    <Power size={13} /> Reset to Auto RNG (Remove Lock)
-                  </button>
+            {/* Light Dropdown with side button */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <select
+                  value={selectedWinnerChoice}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setSelectedWinnerChoice(val)
+                    handleForceWinner(val ? parseInt(val) : null)
+                  }}
+                  className="w-full appearance-none rounded-xl border border-slate-300 bg-white hover:bg-slate-50/90 pl-3.5 pr-8 py-2 text-xs font-bold text-slate-800 shadow-2xs outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 cursor-pointer transition"
+                >
+                  <option value="">Auto Provably Fair RNG (Natural Race)</option>
+                  {HORSES_DATA.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      Horse #{h.number} - {h.name} (Odds: {h.odds}x)
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-500">
+                  <ChevronDown size={14} className="stroke-[2.5]" />
                 </div>
+              </div>
+
+              {/* Side button */}
+              {predeterminedWinner ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedWinnerChoice('')
+                    handleForceWinner(null)
+                  }}
+                  className="shrink-0 flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 transition shadow-2xs active:scale-95 cursor-pointer"
+                  title="Reset to Natural Fair Race"
+                >
+                  <Power size={13} />
+                  <span>Reset Auto</span>
+                </button>
               ) : (
-                <p className="text-[11px] text-slate-500 italic">
-                  * Ek baar horse lock karne par wo <strong>har aane wali race</strong> me automatically winner rahega.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedWinnerChoice) {
+                      handleForceWinner(parseInt(selectedWinnerChoice))
+                    }
+                  }}
+                  disabled={!selectedWinnerChoice}
+                  className={`shrink-0 flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition shadow-2xs active:scale-95 ${
+                    selectedWinnerChoice
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-blue-500/20'
+                      : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                  }`}
+                  title="Lock selected horse as guaranteed winner"
+                >
+                  <Crown size={13} />
+                  <span>Lock Winner</span>
+                </button>
               )}
             </div>
+
+            {predeterminedWinner ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-xs text-emerald-800 font-bold flex items-center gap-2">
+                <Crown size={14} className="text-amber-500 shrink-0" />
+                <span className="truncate">
+                  Horse #{HORSES_DATA.find((x) => x.id === predeterminedWinner)?.number} {HORSES_DATA.find((x) => x.id === predeterminedWinner)?.name} har race me sabse aage rahega jab tak aap reset na karein.
+                </span>
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-500 italic">
+                * Ek baar horse lock karne par wo <strong>har aane wali race</strong> me automatically winner rahega.
+              </p>
+            )}
           </div>
         </div>
 
@@ -1533,7 +2007,12 @@ export default function HorseRiding() {
                 {[2, 3, 4, 5].map((m) => (
                   <button
                     key={m}
-                    onClick={() => setSelectedMultiplier(m)}
+                    onClick={() => {
+                      setSelectedMultiplier(m)
+                      try {
+                        localStorage.setItem('horse_jackpot_multiplier', String(m))
+                      } catch {}
+                    }}
                     className={`py-1 rounded-lg text-xs font-black transition border ${
                       selectedMultiplier === m
                         ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-2xs ring-1 ring-amber-400'
@@ -1553,7 +2032,12 @@ export default function HorseRiding() {
               </span>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
-                  onClick={() => setSelectedJackpotMode('CONTINUOUS')}
+                  onClick={() => {
+                    setSelectedJackpotMode('CONTINUOUS')
+                    try {
+                      localStorage.setItem('horse_jackpot_mode', 'CONTINUOUS')
+                    } catch {}
+                  }}
                   className={`py-1 px-2 rounded-lg text-[11px] font-bold transition border ${
                     selectedJackpotMode === 'CONTINUOUS'
                       ? 'bg-blue-600 text-white border-blue-700 shadow-2xs'
@@ -1563,7 +2047,12 @@ export default function HorseRiding() {
                   Continuous (Har Race)
                 </button>
                 <button
-                  onClick={() => setSelectedJackpotMode('NEXT_ROUND')}
+                  onClick={() => {
+                    setSelectedJackpotMode('NEXT_ROUND')
+                    try {
+                      localStorage.setItem('horse_jackpot_mode', 'NEXT_ROUND')
+                    } catch {}
+                  }}
                   className={`py-1 px-2 rounded-lg text-[11px] font-bold transition border ${
                     selectedJackpotMode === 'NEXT_ROUND'
                       ? 'bg-blue-600 text-white border-blue-700 shadow-2xs'

@@ -3,13 +3,14 @@ import {
   Image as ImageIcon, Plus, Pencil, Trash2, Eye,
   Sparkles, Wallet, Users, Crown, Trophy, Gift, ArrowUpRight,
   CheckCircle2, Clock, Smartphone, Monitor, Layers, RefreshCw,
-  FileSpreadsheet, Database, ExternalLink, SlidersHorizontal
+  FileSpreadsheet, Database, ExternalLink, SlidersHorizontal,
+  Upload, Link as LinkIcon
 } from 'lucide-react'
 import DataTable, { exportCSV } from '@/components/DataTable'
 import { PageBanner, Modal, useToast } from '@/components/ui'
 import { apiRequest } from '@/utils/apiClient'
 import { API_ENDPOINTS } from '@/constants/api'
-import { getBanners, saveBanners, normalizeBanner, deduplicateBanners } from './bannerStore'
+import { getBanners, saveBanners, normalizeBanner, deduplicateBanners, resolveImageUrl } from './bannerStore'
 
 export default function Banners() {
   const [rows, setRows] = useState(() => deduplicateBanners(getBanners()))
@@ -166,13 +167,77 @@ export default function Banners() {
     }
   }
 
-  // Handle Save Modal (POST or PUT /admin/banners or /admin/activity-banners)
+  // Handle File Upload from device (Banner Artwork or Activity Icon)
+  const handleFileUpload = (e, field) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result
+      setModal((prev) => {
+        if (!prev) return null
+        return {
+          ...prev,
+          row: {
+            ...prev.row,
+            [field]: dataUrl,
+            [`_${field}_file`]: file,
+          },
+        }
+      })
+      toast(`${field === 'banner_img' ? 'Banner artwork' : 'Activity icon'} selected from device`)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Handle Save Modal (POST or PUT /api/admin/banners or /api/admin/sliders)
   const handleSaveModal = async (e) => {
     e.preventDefault()
     const { title, subtitle, category, target_route, icon_type, banner_img, activity_img, priority, status, _type } = modal.row
     if (!title) return toast('Please enter a banner title')
 
     const isActivity = _type === 'activity' || category?.includes('Activity')
+    const numericStatus = status === 'Active' || status === 1 || status === '1' ? 1 : 0
+    const resolvedBannerImg = resolveImageUrl(banner_img)
+    const resolvedActivityImg = resolveImageUrl(activity_img)
+
+    const backendPayload = {
+      title,
+      banner_image: resolvedBannerImg || banner_img,
+      image: resolvedBannerImg || banner_img,
+      activity_image: resolvedActivityImg || activity_img,
+      activity_image_url: target_route || '/offer',
+      status: numericStatus,
+      status_label: numericStatus === 1 ? 'Active' : 'Inactive',
+    }
+
+    const hasFiles = Boolean(modal.row._banner_img_file || modal.row._activity_img_file)
+    const buildRequestBody = () => {
+      if (hasFiles) {
+        const fd = new FormData()
+        fd.append('title', title)
+        fd.append('status', String(numericStatus))
+        if (modal.row.id) fd.append('id', String(modal.row.id))
+        if (target_route) {
+          fd.append('activity_image_url', target_route)
+          fd.append('target_route', target_route)
+        }
+        if (modal.row._banner_img_file) {
+          fd.append('banner_image', modal.row._banner_img_file)
+          fd.append('image', modal.row._banner_img_file)
+        } else if (resolvedBannerImg || banner_img) {
+          fd.append('banner_image', resolvedBannerImg || banner_img)
+          fd.append('image', resolvedBannerImg || banner_img)
+        }
+        if (modal.row._activity_img_file) {
+          fd.append('activity_image', modal.row._activity_img_file)
+        } else if (resolvedActivityImg || activity_img) {
+          fd.append('activity_image', resolvedActivityImg || activity_img)
+        }
+        return fd
+      }
+      return JSON.stringify({ ...backendPayload, id: modal.row?.id })
+    }
 
     if (modal.mode === 'add') {
       const newRecord = {
@@ -182,14 +247,15 @@ export default function Banners() {
         category: category || (isActivity ? 'Activity Promotion' : 'Hero Carousel'),
         target_route: target_route || '/offer',
         icon_type: icon_type || 'Sparkles',
-        banner_img: banner_img || 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #6366f1 100%)',
-        activity_img: activity_img || 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+        banner_img: resolvedBannerImg || banner_img || 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #6366f1 100%)',
+        activity_img: resolvedActivityImg || activity_img || 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
         priority: Number(priority) || rows.length + 1,
-        status: status || 'Active',
+        status: numericStatus === 1 ? 'Active' : 'Inactive',
         impressions: 0,
         clicks: 0,
         date: new Date().toISOString().slice(0, 10),
         _type: isActivity ? 'activity' : 'banner',
+        ...backendPayload,
       }
       persistRows((prev) => [newRecord, ...prev])
       toast(`New ${isActivity ? 'activity banner' : 'banner'} "${title}" added successfully!`)
@@ -198,8 +264,13 @@ export default function Banners() {
       try {
         await apiRequest(targetUrl, {
           method: 'POST',
-          body: JSON.stringify(newRecord),
-        }).catch(() => null)
+          body: buildRequestBody(),
+        }).catch(async () => {
+          await apiRequest(API_ENDPOINTS.SLIDERS_PROXY, {
+            method: 'POST',
+            body: buildRequestBody(),
+          }).catch(() => null)
+        })
       } catch (err) {
         console.warn('[Veronova Banners] Create banner failed:', err.message)
       }
@@ -210,11 +281,12 @@ export default function Banners() {
         category,
         target_route,
         icon_type,
-        banner_img,
-        activity_img,
+        banner_img: resolvedBannerImg || banner_img,
+        activity_img: resolvedActivityImg || activity_img,
         priority: Number(priority) || 1,
-        status,
+        status: numericStatus === 1 ? 'Active' : 'Inactive',
         _type: isActivity ? 'activity' : 'banner',
+        ...backendPayload,
       }
       updateRow(modal.row.id, patch)
       toast(`Banner #${modal.row.id} updated successfully`)
@@ -226,12 +298,17 @@ export default function Banners() {
       try {
         await apiRequest(itemUrl, {
           method: 'PUT',
-          body: JSON.stringify({ id: modal.row.id, ...patch }),
+          body: buildRequestBody(),
         }).catch(async () => {
           await apiRequest(itemUrl, {
             method: 'POST',
-            body: JSON.stringify({ id: modal.row.id, ...patch }),
-          }).catch(() => null)
+            body: buildRequestBody(),
+          }).catch(async () => {
+            await apiRequest(API_ENDPOINTS.SLIDERS_ITEM_PROXY(modal.row.id), {
+              method: 'POST',
+              body: buildRequestBody(),
+            }).catch(() => null)
+          })
         })
       } catch (err) {
         console.warn(`[Veronova Banners] Update failed for #${modal.row.id}:`, err.message)
@@ -258,7 +335,12 @@ export default function Banners() {
         await apiRequest(itemUrl, {
           method: 'POST',
           body: JSON.stringify({ action: 'delete', _method: 'DELETE' }),
-        }).catch(() => null)
+        }).catch(async () => {
+          await apiRequest(API_ENDPOINTS.BANNERS_PROXY, {
+            method: 'POST',
+            body: JSON.stringify({ id, action: 'delete' }),
+          }).catch(() => null)
+        })
       })
     } catch (err) {
       console.warn(`[Veronova Banners] Delete failed for #${id}:`, err.message)
@@ -310,47 +392,76 @@ export default function Banners() {
     {
       key: 'banner_img',
       label: 'Banner Image (Wide 16:9)',
-      render: (r) => (
-        <div className="min-w-[210px]">
-          <div
-            style={{ background: r.banner_img }}
-            className="h-16 w-48 rounded-xl p-2.5 text-white shadow-sm flex flex-col justify-between relative overflow-hidden transition-transform hover:scale-105 cursor-pointer"
-            onClick={() => setPreviewItem(r)}
-            title="Click to preview in mobile mockup"
-          >
-            <div className="flex items-center justify-between">
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white/20 backdrop-blur-md">
-                {renderIcon(r.icon_type, 12)}
-              </span>
-              <span className="text-[8px] font-black uppercase tracking-wider bg-black/30 px-1 py-0.2 rounded">
-                Slot #{r.priority}
-              </span>
-            </div>
-            <div>
-              <p className="text-[11px] font-black truncate drop-shadow-sm">{r.title}</p>
+      render: (r) => {
+        const isGradient = r.banner_img?.startsWith('linear-gradient')
+        const imgUrl = resolveImageUrl(r.banner_img || r.banner_image || r.image)
+        return (
+          <div className="min-w-[210px]">
+            <div
+              className="h-16 w-48 rounded-xl text-white shadow-sm flex flex-col justify-between relative overflow-hidden transition-transform hover:scale-105 cursor-pointer bg-slate-900 border border-slate-700/50"
+              onClick={() => setPreviewItem(r)}
+              title="Click to preview in mobile mockup"
+            >
+              {!isGradient && imgUrl ? (
+                <img
+                  src={imgUrl}
+                  alt={r.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
+              ) : (
+                <div className="absolute inset-0 w-full h-full" style={{ background: r.banner_img }} />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+              <div className="flex items-center justify-between relative z-10 p-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white/20 backdrop-blur-md">
+                  {renderIcon(r.icon_type, 12)}
+                </span>
+                <span className="text-[8px] font-black uppercase tracking-wider bg-black/40 px-1.5 py-0.5 rounded">
+                  Slot #{r.priority}
+                </span>
+              </div>
+              <div className="relative z-10 p-2 pt-0">
+                <p className="text-[11px] font-black truncate drop-shadow-md">{r.title}</p>
+              </div>
             </div>
           </div>
-        </div>
-      ),
+        )
+      },
     },
     {
       key: 'activity_img',
       label: 'Activity Image (Icon Tile)',
-      render: (r) => (
-        <div className="min-w-[130px]">
-          <div
-            style={{ background: r.activity_img }}
-            className="h-14 w-14 rounded-2xl flex flex-col items-center justify-center text-white shadow-sm transition-transform hover:scale-110 cursor-pointer p-1 text-center"
-            onClick={() => setPreviewItem(r)}
-            title="Activity Icon Tile"
-          >
-            {renderIcon(r.icon_type, 18)}
-            <span className="text-[8px] font-black mt-0.5 truncate max-w-[48px]">
-              {r.title.split(' ')[0]}
-            </span>
+      render: (r) => {
+        const isGradient = r.activity_img?.startsWith('linear-gradient')
+        const imgUrl = resolveImageUrl(r.activity_img || r.activity_image)
+        return (
+          <div className="min-w-[130px]">
+            <div
+              className="h-14 w-14 rounded-2xl flex flex-col items-center justify-center text-white shadow-sm transition-transform hover:scale-110 cursor-pointer p-1 text-center relative overflow-hidden bg-slate-900 border border-slate-700/50"
+              onClick={() => setPreviewItem(r)}
+              title="Activity Icon Tile"
+            >
+              {!isGradient && imgUrl ? (
+                <img
+                  src={imgUrl}
+                  alt={r.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
+              ) : (
+                <div className="absolute inset-0 w-full h-full" style={{ background: r.activity_img }} />
+              )}
+              <div className="relative z-10 flex flex-col items-center">
+                {renderIcon(r.icon_type, 18)}
+                <span className="text-[8px] font-black mt-0.5 truncate max-w-[48px] drop-shadow">
+                  {r.title.split(' ')[0]}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      ),
+        )
+      },
     },
     {
       key: 'analytics',
@@ -483,149 +594,6 @@ export default function Banners() {
           </button>
         </div>
       </PageBanner>
-
-      {/* Bespoke Carousel & CMS Studio Command Hub */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Left Hero (7 cols): Billboard Impressions & CTR Engine */}
-        <div className="lg:col-span-7 relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-xl border border-purple-900/40 flex flex-col justify-between">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-10 -left-10 w-60 h-60 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
-
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="flex h-2.5 w-2.5 rounded-full bg-purple-400 animate-ping" />
-                <span className="text-xs font-bold uppercase tracking-widest text-purple-300">
-                  Activity Center & Billboard Studio
-                </span>
-              </div>
-              <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-purple-200 border border-white/10 flex items-center gap-1.5">
-                <Smartphone size={12} className="text-purple-300" /> App Synced
-              </span>
-            </div>
-
-            <div className="mt-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-purple-200/80">Total Activity Billboard Impressions</p>
-              <div className="mt-1 flex flex-wrap items-baseline gap-3">
-                <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white drop-shadow-sm font-mono">
-                  {totalImpressions.toLocaleString('en-IN')}
-                </h2>
-                <span className="text-xs font-semibold text-purple-300">Views logged across all player sessions</span>
-              </div>
-            </div>
-
-            {/* CTR Engagement Bar */}
-            <div className="mt-5 space-y-2">
-              <div className="flex items-center justify-between text-xs font-medium">
-                <span className="text-slate-300 flex items-center gap-1.5">
-                  <ArrowUpRight size={13} className="text-purple-400" /> Total Campaign Clicks: {totalClicks.toLocaleString('en-IN')}
-                </span>
-                <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                  {ctrRate}% Click-Through Rate
-                </span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10 p-0.5">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-400 transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(15, parseFloat(ctrRate) * 5))}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-            <div>
-              <p className="text-[11px] text-slate-400">Live Active Campaigns</p>
-              <p className="text-sm font-extrabold text-white mt-0.5">
-                {activeBanners.length} Slots Active
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] text-slate-400">Total Media Assets</p>
-              <p className="text-sm font-extrabold text-purple-300 mt-0.5">
-                {rows.length} Campaigns
-              </p>
-            </div>
-            <div className="col-span-2 sm:col-span-1">
-              <p className="text-[11px] text-slate-400">Resolution Standard</p>
-              <p className="text-sm font-extrabold text-emerald-400 mt-0.5 flex items-center gap-1">
-                <CheckCircle2 size={14} /> Dual Vector Ready
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Right (5 cols): Live Dual-View Mockup (Banner + Activity Tile) */}
-        <div className="lg:col-span-5 card p-5 rounded-2xl border-t-4 border-t-purple-600 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <div className="flex items-center gap-2">
-                <Smartphone size={16} className="text-purple-600" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Player App Dual-View Spotlight
-                </h4>
-              </div>
-              <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
-                Live Artwork
-              </span>
-            </div>
-
-            {currentPreview && (
-              <div className="mt-3 space-y-3">
-                {/* 1. Wide Banner Mockup */}
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                    1. Wide Carousel Banner (16:9)
-                  </span>
-                  <div
-                    style={{ background: currentPreview.banner_img }}
-                    className="h-24 w-full rounded-2xl p-3 text-white shadow-md flex flex-col justify-between relative overflow-hidden"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/20 backdrop-blur-md">
-                        {renderIcon(currentPreview.icon_type, 14)}
-                      </span>
-                      <span className="rounded-full bg-black/30 px-2 py-0.5 text-[9px] font-black uppercase">
-                        Pos #{currentPreview.priority}
-                      </span>
-                    </div>
-                    <div>
-                      <h5 className="text-xs font-black truncate">{currentPreview.title}</h5>
-                      <p className="text-[10px] text-white/80 truncate">{currentPreview.subtitle}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Activity Icon Tile Mockup */}
-                <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      2. Activity Center Icon Tile (1:1)
-                    </span>
-                    <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">
-                      {currentPreview.title}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      Route: {currentPreview.target_route}
-                    </span>
-                  </div>
-                  <div
-                    style={{ background: currentPreview.activity_img }}
-                    className="h-12 w-12 rounded-xl flex items-center justify-center text-white shadow-md"
-                  >
-                    {renderIcon(currentPreview.icon_type, 20)}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-            <span>Click any table row to update spotlight</span>
-            <span className="font-bold text-purple-600">{activeBanners.length} Live in Rotation</span>
-          </div>
-        </div>
-      </div>
 
       {/* Main Table Card */}
       <div className="card p-4 space-y-4 shadow-sm">
@@ -807,17 +775,114 @@ export default function Banners() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Banner Artwork (Image URL or Gradient)
-              </label>
-              <input
-                type="text"
-                placeholder="https://... or linear-gradient(...)"
-                className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-mono font-medium text-slate-800 outline-none focus:border-blue-500"
-                value={modal.row.banner_img || ''}
-                onChange={(e) => setModal({ ...modal, row: { ...modal.row, banner_img: e.target.value } })}
-              />
+            {/* 1. Banner Image (Wide 16:9 Carousel) */}
+            <div className="rounded-xl border border-slate-200 p-3 bg-slate-50/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <ImageIcon size={14} className="text-blue-600" />
+                  <span>Banner Artwork (Wide 16:9 Carousel)</span>
+                </label>
+                <span className="text-[10px] text-slate-500 font-medium">Device se Upload ya URL paste karein</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                {/* File Upload Button */}
+                <label className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer active:scale-95">
+                  <Upload size={14} />
+                  <span>Upload Image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, 'banner_img')}
+                  />
+                </label>
+
+                {/* Direct URL Input */}
+                <div className="relative flex-1 w-full">
+                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                    <LinkIcon size={13} />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="https://api.wingo4all.site/uploads/sliders/... ya URL"
+                    className="w-full rounded-xl border border-slate-200 pl-8 pr-2.5 py-2 text-xs font-mono font-medium text-slate-800 bg-white outline-none focus:border-blue-500"
+                    value={modal.row.banner_img || ''}
+                    onChange={(e) => setModal({ ...modal, row: { ...modal.row, banner_img: e.target.value, _banner_img_file: null } })}
+                  />
+                </div>
+
+                {/* Live Thumbnail Preview */}
+                {modal.row.banner_img && (
+                  <div className="h-10 w-16 shrink-0 rounded-lg overflow-hidden border border-slate-300 relative shadow-inner bg-slate-900" title="Banner Preview">
+                    {!modal.row.banner_img.startsWith('linear-gradient') ? (
+                      <img
+                        src={resolveImageUrl(modal.row.banner_img)}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
+                    ) : (
+                      <div className="w-full h-full" style={{ background: modal.row.banner_img }} />
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Activity Image (1:1 Icon Tile) */}
+            <div className="rounded-xl border border-slate-200 p-3 bg-slate-50/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Layers size={14} className="text-indigo-600" />
+                  <span>Activity Image (1:1 Icon / Square Tile)</span>
+                </label>
+                <span className="text-[10px] text-slate-500 font-medium">Activity icon image / route thumbnail</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                {/* File Upload Button */}
+                <label className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-sm transition cursor-pointer active:scale-95">
+                  <Upload size={14} />
+                  <span>Upload Icon</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, 'activity_img')}
+                  />
+                </label>
+
+                {/* Direct URL Input */}
+                <div className="relative flex-1 w-full">
+                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                    <LinkIcon size={13} />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="https://api.wingo4all.site/uploads/sliders/... ya URL"
+                    className="w-full rounded-xl border border-slate-200 pl-8 pr-2.5 py-2 text-xs font-mono font-medium text-slate-800 bg-white outline-none focus:border-indigo-500"
+                    value={modal.row.activity_img || ''}
+                    onChange={(e) => setModal({ ...modal, row: { ...modal.row, activity_img: e.target.value, _activity_img_file: null } })}
+                  />
+                </div>
+
+                {/* Live Thumbnail Preview */}
+                {modal.row.activity_img && (
+                  <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden border border-slate-300 relative shadow-inner bg-slate-900" title="Activity Preview">
+                    {!modal.row.activity_img.startsWith('linear-gradient') ? (
+                      <img
+                        src={resolveImageUrl(modal.row.activity_img)}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
+                    ) : (
+                      <div className="w-full h-full" style={{ background: modal.row.activity_img }} />
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

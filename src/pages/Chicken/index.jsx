@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Flame,
   Database,
@@ -22,6 +22,9 @@ import {
   HelpCircle,
   RefreshCw,
   Play,
+  ChevronDown,
+  Check,
+  X,
 } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { PageBanner, FormModal, useToast, money } from '@/components/ui'
@@ -128,17 +131,17 @@ export function ChickenMultiplier() {
   const [toast, toastNode] = useToast()
   const [loading, setLoading] = useState(false)
   const [roast, setRoast] = useState([
-    { id: 1, type: 'Easy', value: '1.50', steps: 24, rtp: '97.2%' },
-    { id: 2, type: 'Medium', value: '1760.55', steps: 24, rtp: '96.8%' },
+    { id: 1, type: 'Easy', value: '10.00', steps: 24, rtp: '97.2%' },
+    { id: 2, type: 'Medium', value: '1.68', steps: 20, rtp: '96.8%' },
     { id: 3, type: 'Hard', value: '40899.77', steps: 24, rtp: '96.5%' },
     { id: 4, type: 'Hardcore', value: '2516310.50', steps: 24, rtp: '96.0%' },
   ])
 
   const base = [
-    { id: 1, type: 'Easy', multiplier: '1.03;1.07;1.12;1.18;1.25;1.34;1.45;1.60;1.78;2.01', frequency: 1 },
-    { id: 2, type: 'Medium', multiplier: '1.10;1.22;1.38;1.59;1.88;2.28;2.85;3.68;4.95;7.00', frequency: 1 },
-    { id: 3, type: 'Hard', multiplier: '1.25;1.60;2.15;3.05;4.65;7.65;13.80;27.50;62.00;165.00', frequency: 1 },
-    { id: 4, type: 'Hardcore', multiplier: '1.50;2.35;4.00;7.50;15.50;36.00;95.00;290.00;1050.00;4800.00', frequency: 1 },
+    { id: 1, type: 'Easy', multiplier: '1.02;1.05;1.16;1.21;1.27;1.34;1.42;1.51;1.61;1.72;1.85;2.01;2.19;2.42;2.69;3.02;3.46;4.04;4.85;6.06;6.53;9.70;19.23;1.51;10.00', frequency: 1 },
+    { id: 2, type: 'Medium', multiplier: '1.11;1.27;1.45;1.68;1.95;2.30;2.73;3.28;4.00;4.92;6.14;6.83;8.79;11.60;15.80;22.36;33.22;52.60;91.20;179.62', frequency: 1 },
+    { id: 3, type: 'Hard', multiplier: '1.22;1.54;1.96;2.54;3.33;4.45;5.42;7.44;10.44;15.04;22.35;34.42;55.39;94.02;170.65;337.90;752.69;1987.10;6885.48;40899.77', frequency: 1 },
+    { id: 4, type: 'Hardcore', multiplier: '1.60;2.76;4.89;8.97;15.04;29.80;62.30;138.80;333.74;881.10;2616.90;9067.50;38900.01;231066.12;2516310.50', frequency: 1 },
   ]
 
   const [list, setList] = useState(
@@ -155,6 +158,148 @@ export function ChickenMultiplier() {
   const [edit, setEdit] = useState(null)
   const [add, setAdd] = useState(false)
   const [activeTab, setActiveTab] = useState('ALL')
+  const [openDropdownTierId, setOpenDropdownTierId] = useState(null)
+  const [modalDropdownOpen, setModalDropdownOpen] = useState(false)
+
+  // Default step multipliers matching difficulty curves and user spec (all values from image)
+  const DEFAULT_TIER_STEPS = {
+    Easy: [
+      '1.02', '1.05', '1.16', '1.21', '1.27', '1.34', '1.42', '1.51',
+      '1.61', '1.72', '1.85', '2.01', '2.19', '2.42', '2.69', '3.02',
+      '3.46', '4.04', '4.85', '6.06', '6.53', '9.70', '19.23', '1.51', '10.00'
+    ],
+    Medium: [
+      '1.11', '1.27', '1.45', '1.68', '1.95', '2.30', '2.73', '3.28',
+      '4.00', '4.92', '6.14', '6.83', '8.79', '11.60', '15.80', '22.36',
+      '33.22', '52.60', '91.20', '179.62'
+    ],
+    Hard: [
+      '1.22', '1.54', '1.96', '2.54', '3.33', '4.45', '5.42', '7.44',
+      '10.44', '15.04', '22.35', '34.42', '55.39', '94.02', '170.65', '337.90',
+      '752.69', '1987.10', '6885.48', '40899.77'
+    ],
+    Hardcore: [
+      '1.60', '2.76', '4.89', '8.97', '15.04', '29.80', '62.30', '138.80',
+      '333.74', '881.10', '2616.90', '9067.50', '38900.01', '231066.12', '2516310.50'
+    ],
+  }
+
+  // Helper to get all multiplier steps for a difficulty tier (strictly matching image spec)
+  const getStepsForTier = (tierType) => {
+    const normType = TYPE_MAP[tierType] || tierType
+    return DEFAULT_TIER_STEPS[normType] || DEFAULT_TIER_STEPS.Easy
+  }
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.roast-dropdown-container')) {
+        setOpenDropdownTierId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Immediate roast multiplier update via dropdown
+  const handleSelectRoastMultiplier = async (tier, selectedValue) => {
+    const typeNum = TYPE_TO_NUM[tier.type] || tier.types || tier.id || 1
+    const isRandom = selectedValue === 'Random' || Number(selectedValue) <= 0
+    const roast_multiplier = isRandom ? 0 : Number(selectedValue)
+
+    try {
+      await apiRequest(CHICKEN_API.chickenUpdateRoastMultiplier, {
+        method: 'POST',
+        body: JSON.stringify({
+          id: tier.id,
+          types: typeNum,
+          type: typeNum,
+          roast_multiplier: isRandom ? 0 : selectedValue,
+        }),
+      })
+      toast(
+        isRandom
+          ? `🎲 ${tier.type} roast set to Random mode!`
+          : `🎯 ${tier.type} roast point fixed at ${selectedValue}x! Chicken will roast at this step.`
+      )
+    } catch (err) {
+      console.warn('[Update Roast Multiplier] API error, updated locally:', err.message)
+      toast(
+        isRandom
+          ? `🎲 ${tier.type} roast set to Random mode!`
+          : `🎯 ${tier.type} roast point set to ${selectedValue}x!`
+      )
+    }
+
+    setRoast((prev) =>
+      prev.map((t) =>
+        t.id === tier.id || t.type === tier.type
+          ? { ...t, value: isRandom ? 'Random' : String(selectedValue) }
+          : t
+      )
+    )
+    setOpenDropdownTierId(null)
+  }
+
+  // Modal states for custom roast configuration
+  const [roastModalValue, setRoastModalValue] = useState('Random')
+  const [roastModalRtp, setRoastModalRtp] = useState('96.8%')
+
+  useEffect(() => {
+    if (edit && edit.kind === 'roast') {
+      setRoastModalValue(edit.row.value ?? 'Random')
+      setRoastModalRtp(edit.row.rtp ?? '96.8%')
+    }
+  }, [edit])
+
+  // Save handler for panel-style roast modal
+  const handleSaveRoastModal = async () => {
+    if (!edit || edit.kind !== 'roast') return
+    const tier = edit.row
+    const typeNum = TYPE_TO_NUM[tier.type] || tier.types || tier.id || 1
+    const isRandom = roastModalValue === 'Random' || Number(roastModalValue) <= 0
+    const roastVal = isRandom ? 0 : roastModalValue
+
+    try {
+      await apiRequest(CHICKEN_API.chickenUpdateRoastMultiplier, {
+        method: 'POST',
+        body: JSON.stringify({
+          id: tier.id,
+          types: typeNum,
+          type: typeNum,
+          roast_multiplier: roastVal,
+          multiplier: roastVal,
+          value: isRandom ? 'Random' : roastModalValue,
+          rtp: roastModalRtp || tier.rtp,
+        }),
+      })
+      toast(
+        isRandom
+          ? `🎲 ${tier.type} roast set to Random mode!`
+          : `🎯 ${tier.type} roast point fixed at ${roastModalValue}x!`
+      )
+    } catch (err) {
+      console.warn('[Update Roast Multiplier] API error, updated locally:', err.message)
+      toast(
+        isRandom
+          ? `🎲 ${tier.type} roast set to Random mode!`
+          : `🎯 ${tier.type} roast point fixed at ${roastModalValue}x!`
+      )
+    }
+
+    setRoast((prev) =>
+      prev.map((t) =>
+        t.id === tier.id || t.type === tier.type
+          ? {
+              ...t,
+              value: isRandom ? 'Random' : String(roastModalValue),
+              rtp: roastModalRtp || t.rtp,
+            }
+          : t
+      )
+    )
+    setEdit(null)
+  }
 
   // Load live multipliers from backend (GET /admin/multiplier or /multiplier?admin=1)
   const fetchMultipliers = async () => {
@@ -165,7 +310,7 @@ export function ChickenMultiplier() {
         res = await apiRequest('/admin/multiplier')
       } catch {
         try {
-          res = await apiRequest('/multiplier?admin=1')
+          res = await apiRequest('/api/multiplier?admin=1')
         } catch {
           res = await apiRequest(CHICKEN_API.chickenMultiplier)
         }
@@ -346,17 +491,19 @@ export function ChickenMultiplier() {
           <button
             onClick={fetchMultipliers}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1 text-xs font-bold text-white transition backdrop-blur-xs"
+            className="inline-flex items-center gap-1.5 rounded-full bg-white hover:bg-slate-50 border border-slate-300 px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-xs transition cursor-pointer active:scale-95"
+            title="Sync multipliers with live engine"
           >
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Syncing...' : 'Sync Live'}
+            <RefreshCw size={12} className={`text-blue-600 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Syncing...' : 'Sync Live'}</span>
           </button>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 border border-amber-400/40 px-3 py-1 text-xs font-bold text-amber-200 backdrop-blur-xs">
-            <Flame size={13} className="text-amber-400 fill-amber-400 animate-pulse" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-300 px-3.5 py-1.5 text-xs font-black text-amber-900 shadow-2xs">
+            <Flame size={13} className="text-amber-500 fill-amber-500 animate-pulse" />
             Max Jackpot: 2.51M Multiplier
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 px-3 py-1 text-xs font-bold text-emerald-200">
-            <ShieldCheck size={13} /> Provably Fair Engine
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-300 px-3.5 py-1.5 text-xs font-bold text-emerald-800 shadow-2xs">
+            <ShieldCheck size={13} className="text-emerald-600" />
+            Provably Fair Engine
           </span>
         </div>
       </PageBanner>
@@ -428,10 +575,16 @@ export function ChickenMultiplier() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {roast.map((tier) => {
             const cfg = DIFFICULTY_CONFIG[tier.type] || DIFFICULTY_CONFIG.Easy
+            const isOpen = openDropdownTierId === tier.id
+            const tierSteps = getStepsForTier(tier.type)
+            const isRandom = tier.value === 'Random' || Number(tier.value) <= 0
+
             return (
               <div
                 key={tier.id}
-                className={`group relative overflow-hidden rounded-2xl bg-white border ${cfg.cardBorder} p-4 shadow-xs hover:shadow-md transition-all`}
+                className={`group relative rounded-2xl bg-white border ${cfg.cardBorder} p-4 shadow-xs hover:shadow-md transition-all ${
+                  isOpen ? 'z-40 ring-2 ring-blue-500 shadow-lg' : 'z-10'
+                }`}
               >
                 {/* Background decorative tint */}
                 <div
@@ -456,20 +609,107 @@ export function ChickenMultiplier() {
 
                 <div className="mt-3.5">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Max Roast Multiplier
+                    Active Roast Multiplier
                   </span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className="font-mono text-2xl font-black text-slate-900 tracking-tight">
-                      {tier.value}
+                      {isRandom ? 'Random' : tier.value}
                     </span>
-                    <span className="font-black text-amber-500 text-base">x</span>
+                    {!isRandom && <span className="font-black text-amber-500 text-base">x</span>}
                   </div>
+                </div>
+
+                {/* Dropdown Selector matching Veronova Panel Theme */}
+                <div className="mt-3 relative roast-dropdown-container">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Select Roast Multiplier
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setOpenDropdownTierId(isOpen ? null : tier.id)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 text-xs font-bold shadow-2xs transition cursor-pointer"
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      {isRandom ? (
+                        <span className="text-blue-600 font-extrabold flex items-center gap-1">
+                          <Zap size={13} className="text-blue-500 fill-blue-500" /> Random Curve
+                        </span>
+                      ) : (
+                        <span className="text-slate-800 font-mono font-black flex items-center gap-1.5">
+                          <Flame size={13} className="text-amber-500 fill-amber-500" /> Roast @ {tier.value}x
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      size={15}
+                      className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180 text-blue-600' : ''}`}
+                    />
+                  </button>
+
+                  {/* Dropdown Menu (Veronova Panel Light Theme) */}
+                  {isOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl overflow-hidden shadow-2xl border border-slate-200/90 bg-white text-slate-800 animate-in fade-in zoom-in-95 duration-100">
+                      {/* Top Header Option: Blue background "Random" */}
+                      <button
+                        type="button"
+                        onClick={() => handleSelectRoastMultiplier(tier, 'Random')}
+                        className={`w-full text-left px-3.5 py-2.5 text-xs font-bold transition flex items-center justify-between cursor-pointer border-b border-slate-100 ${
+                          isRandom
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-blue-50 hover:bg-blue-100/70 text-blue-700'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          {isRandom ? <Check size={14} className="stroke-[3] shrink-0" /> : <Zap size={13} className="text-blue-500" />}
+                          <span>Random (Auto Curve)</span>
+                        </span>
+                        <span className={`text-[10px] font-normal uppercase tracking-wider ${isRandom ? 'text-blue-100' : 'text-blue-500'}`}>
+                          Engine
+                        </span>
+                      </button>
+
+                      {/* Scrollable list of steps (Complete Image List) */}
+                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 scrollbar-thin scrollbar-thumb-slate-200">
+                        {tierSteps.map((step) => {
+                          const isSelected =
+                            !isRandom &&
+                            (String(tier.value) === String(step) ||
+                              Math.abs(Number(tier.value) - Number(step)) < 0.001)
+
+                          return (
+                            <button
+                              key={step}
+                              type="button"
+                              onClick={() => handleSelectRoastMultiplier(tier, step)}
+                              className={`w-full text-left px-3.5 py-2 text-xs font-mono transition flex items-center justify-between cursor-pointer ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white font-black'
+                                  : 'hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-semibold'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                {isSelected ? (
+                                  <Check size={14} className="text-white stroke-[3] shrink-0" />
+                                ) : (
+                                  <span className="w-3.5 shrink-0" />
+                                )}
+                                <span>{step}x</span>
+                              </span>
+                              <span className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400 font-sans font-normal'}`}>
+                                Step
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                   <span className="flex items-center gap-1 font-mono text-[11px] font-bold text-slate-600">
                     <Target size={12} className="text-slate-400" />
-                    24 Steps
+                    {tierSteps.length} Steps
                   </span>
                   <span className="font-mono text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
                     RTP {tier.rtp}
@@ -533,96 +773,253 @@ export function ChickenMultiplier() {
         />
       </div>
 
-      {/* EDIT MODAL */}
-      {edit && (
+      {/* CUSTOM ROAST MULTIPLIER CONFIGURATION MODAL (PANEL UI) */}
+      {edit && edit.kind === 'roast' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+          onClick={() => {
+            setEdit(null)
+            setModalDropdownOpen(false)
+          }}
+        >
+          <div
+            className="w-full max-w-md overflow-visible rounded-2xl bg-white shadow-2xl border border-slate-200 transition-all flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 rounded-t-2xl">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600 shadow-2xs">
+                  <Flame size={18} className="fill-amber-500 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Edit {edit.row.type} Roast Multiplier
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Configure roast target point & RTP rate
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEdit(null)
+                  setModalDropdownOpen(false)
+                }}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Custom Panel Styled Dropdown for Roast Multiplier */}
+              <div className="relative">
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  Roast Multiplier Selection
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setModalDropdownOpen(!modalDropdownOpen)}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 text-xs font-bold shadow-2xs transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    {roastModalValue === 'Random' || Number(roastModalValue) <= 0 ? (
+                      <span className="text-blue-600 font-extrabold flex items-center gap-1.5">
+                        <Zap size={14} className="fill-blue-500 text-blue-500" />
+                        Random
+                      </span>
+                    ) : (
+                      <span className="text-slate-900 font-mono font-bold flex items-center gap-1.5">
+                        <Flame size={14} className="fill-amber-500 text-amber-500" />
+                        Roast @ {roastModalValue}x
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    className={`text-slate-400 transition-transform ${
+                      modalDropdownOpen ? 'rotate-180 text-blue-600' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* Panel-styled Floating Dropdown Menu */}
+                {modalDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl overflow-hidden shadow-2xl border border-slate-200/90 bg-white text-slate-800 animate-in fade-in zoom-in-95 duration-100">
+                    {/* Random Option (Blue Header Pill) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRoastModalValue('Random')
+                        setModalDropdownOpen(false)
+                      }}
+                      className={`w-full text-left px-3.5 py-2.5 text-xs font-bold transition flex items-center justify-between cursor-pointer border-b border-slate-100 ${
+                        roastModalValue === 'Random' || Number(roastModalValue) <= 0
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-blue-50/70 hover:bg-blue-100/70 text-blue-700'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {roastModalValue === 'Random' || Number(roastModalValue) <= 0 ? (
+                          <Check size={14} className="stroke-[3] shrink-0" />
+                        ) : (
+                          <Zap size={13} className="text-blue-500" />
+                        )}
+                        <span>Random</span>
+                      </span>
+                      <span
+                        className={`text-[10px] font-normal uppercase tracking-wider ${
+                          roastModalValue === 'Random' || Number(roastModalValue) <= 0
+                            ? 'text-blue-100'
+                            : 'text-blue-500'
+                        }`}
+                      >
+                        Auto
+                      </span>
+                    </button>
+
+                    {/* Scrollable list of exact steps from image */}
+                    <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 scrollbar-thin scrollbar-thumb-slate-200">
+                      {getStepsForTier(edit.row.type).map((step) => {
+                        const isSelected =
+                          roastModalValue !== 'Random' &&
+                          Number(roastModalValue) > 0 &&
+                          (String(roastModalValue) === String(step) ||
+                            Math.abs(Number(roastModalValue) - Number(step)) < 0.001)
+
+                        return (
+                          <button
+                            key={step}
+                            type="button"
+                            onClick={() => {
+                              setRoastModalValue(step)
+                              setModalDropdownOpen(false)
+                            }}
+                            className={`w-full text-left px-3.5 py-2 text-xs font-mono transition flex items-center justify-between cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-600 text-white font-black'
+                                : 'hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-semibold'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              {isSelected ? (
+                                <Check size={14} className="text-white stroke-[3] shrink-0" />
+                              ) : (
+                                <span className="w-3.5 shrink-0" />
+                              )}
+                              <span>{step}</span>
+                            </span>
+                            <span
+                              className={`text-[10px] ${
+                                isSelected ? 'text-blue-100' : 'text-slate-400 font-sans font-normal'
+                              }`}
+                            >
+                              Step Multiplier
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* RTP input */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Configured RTP %
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 text-xs font-mono font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                  value={roastModalRtp}
+                  onChange={(e) => setRoastModalRtp(e.target.value)}
+                  placeholder="e.g. 96.8%"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-100 flex items-center justify-end gap-2.5 bg-slate-50/70 rounded-b-2xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setEdit(null)
+                  setModalDropdownOpen(false)
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 transition shadow-2xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveRoastModal}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MODAL FOR MULTIPLIER LIST ROWS */}
+      {edit && edit.kind === 'list' && (
         <FormModal
-          title={`Edit ${edit.kind === 'roast' ? `${edit.row.type} Roast Multiplier` : `Multiplier #${edit.row.id}`}`}
+          title={`Edit Multiplier #${edit.row.id}`}
           values={{
             ...edit.row,
             multiplier: edit.row.multiplier ?? edit.row.mult ?? edit.row.value,
             frequency: edit.row.frequency ?? 1,
             type: TYPE_MAP[edit.row.type] || edit.row.type || 'Easy',
           }}
-          fields={
-            edit.kind === 'roast'
-              ? [
-                  { key: 'value', label: 'Roast Multiplier (e.g. 1.50)', type: 'text' },
-                  { key: 'rtp', label: 'Configured RTP % (e.g. 96.8%)', type: 'text' },
-                ]
-              : [
-                  {
-                    key: 'multiplier',
-                    label: 'Multiplier Values (e.g. 1.03;1.07;1.12;1.18 or single 1.25)',
-                    type: 'text',
-                  },
-                  { key: 'frequency', label: 'Frequency (e.g. 1)', type: 'number' },
-                  {
-                    key: 'type',
-                    label: 'Type (Difficulty Mode)',
-                    options: ['Easy', 'Medium', 'Hard', 'Hardcore'],
-                  },
-                ]
-          }
+          fields={[
+            {
+              key: 'multiplier',
+              label: 'Multiplier Values (e.g. 1.03;1.07;1.12;1.18 or single 1.25)',
+              type: 'text',
+            },
+            { key: 'frequency', label: 'Frequency (e.g. 1)', type: 'number' },
+            {
+              key: 'type',
+              label: 'Type (Difficulty Mode)',
+              options: ['Easy', 'Medium', 'Hard', 'Hardcore'],
+            },
+          ]}
           onSave={async (v) => {
-            if (edit.kind === 'roast') {
-              const typeNum = TYPE_TO_NUM[edit.row.type] || edit.row.types || 1
-              try {
-                await apiRequest(CHICKEN_API.chickenUpdateRoastMultiplier, {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    id: edit.row.id,
-                    types: typeNum,
-                    type: typeNum,
-                    roast_multiplier: v.value,
-                    multiplier: v.value,
-                    value: v.value,
-                    rtp: v.rtp || edit.row.rtp,
-                  }),
-                })
-                toast(`${edit.row.type} roast multiplier updated in live engine!`)
-              } catch (err) {
-                console.warn('[Update Roast Multiplier] Backend error, updating locally:', err.message)
-                toast(`${edit.row.type} roast multiplier updated!`)
-              }
-              setRoast(
-                roast.map((r) =>
-                  r.id === edit.row.id
-                    ? { ...r, value: v.value, rtp: v.rtp || r.rtp }
-                    : r
-                )
-              )
-            } else {
-              const typeNum = TYPE_TO_NUM[v.type] || edit.row.typeNum || 1
-              try {
-                await apiRequest(CHICKEN_API.chickenMultiplierUpdate, {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    id: edit.row.id,
-                    type: typeNum,
-                    types: typeNum,
-                    multiplier: v.multiplier,
-                    frequency: Number(v.frequency || 1),
-                  }),
-                })
-                toast('Multiplier updated in live engine!')
-              } catch (err) {
-                console.warn('[Update Multiplier] Backend error, updating locally:', err.message)
-                toast('Multiplier updated!')
-              }
-              setList(
-                list.map((r) =>
-                  r.id === edit.row.id
-                    ? {
-                        ...r,
-                        multiplier: v.multiplier,
-                        mult: v.multiplier,
-                        type: v.type,
-                        frequency: Number(v.frequency || 1),
-                      }
-                    : r
-                )
-              )
+            const typeNum = TYPE_TO_NUM[v.type] || edit.row.typeNum || 1
+            try {
+              await apiRequest(CHICKEN_API.chickenMultiplierUpdate, {
+                method: 'POST',
+                body: JSON.stringify({
+                  id: edit.row.id,
+                  type: typeNum,
+                  types: typeNum,
+                  multiplier: v.multiplier,
+                  frequency: Number(v.frequency || 1),
+                }),
+              })
+              toast('Multiplier updated in live engine!')
+            } catch (err) {
+              console.warn('[Update Multiplier] Backend error, updating locally:', err.message)
+              toast('Multiplier updated!')
             }
+            setList(
+              list.map((r) =>
+                r.id === edit.row.id
+                  ? {
+                      ...r,
+                      multiplier: v.multiplier,
+                      mult: v.multiplier,
+                      type: v.type,
+                      frequency: Number(v.frequency || 1),
+                    }
+                  : r
+              )
+            )
             setEdit(null)
           }}
           onClose={() => setEdit(null)}
@@ -692,6 +1089,7 @@ export function ChickenMultiplier() {
 // ==========================================
 export function ChickenBetHistory() {
   const [activeFilter, setActiveFilter] = useState('ALL')
+  const [historyUserId, setHistoryUserId] = useState('')
 
   const rawRows = Array.from({ length: 101 }, (_, i) => {
     if (i === 0) {
@@ -784,15 +1182,19 @@ const mapBetRecord = (r, idx) => ({
   const [loading, setLoading] = useState(false)
 
   // Fetch live bet history from backend (fetches all available data from API)
-  const fetchBetHistory = async () => {
+  const fetchBetHistory = async (requestedUserId = historyUserId) => {
     setLoading(true)
     try {
       let res = null
-      // 1. Try GET /history with limit query params to fetch all records
+      const userId = String(requestedUserId || '').trim()
+      const historyEndpoint = userId
+        ? CHICKEN_API.chickenHistoryByUser(userId)
+        : CHICKEN_API.chickenHistory
+      // GET all history for the admin table, or scope it to a selected player.
       try {
-        res = await apiRequest(`${CHICKEN_API.chickenHistory}?limit=1000&per_page=1000&page=1`)
+        res = await apiRequest(`${historyEndpoint}${userId ? '&' : '?'}limit=1000&per_page=1000&page=1`)
       } catch {
-        res = await apiRequest(CHICKEN_API.chickenHistory)
+        res = await apiRequest(historyEndpoint)
       }
 
       let items = extractHistoryList(res)
@@ -802,7 +1204,7 @@ const mapBetRecord = (r, idx) => ({
         try {
           const postRes = await apiRequest(CHICKEN_API.chickenHistory, {
             method: 'POST',
-            body: JSON.stringify({ page: 1, limit: 1000 }),
+            body: JSON.stringify({ page: 1, limit: 1000, ...(userId ? { user_id: userId } : {}) }),
           })
           items = extractHistoryList(postRes)
         } catch {
@@ -821,7 +1223,7 @@ const mapBetRecord = (r, idx) => ({
   }
 
   useEffect(() => {
-    fetchBetHistory()
+    fetchBetHistory('')
   }, [])
 
   const filteredRows =
@@ -933,18 +1335,28 @@ const mapBetRecord = (r, idx) => ({
     <div className="space-y-6">
       <PageBanner title="User Bets Table" icon={Target} crumbs={crumbs('Bet History')}>
         <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={historyUserId}
+            onChange={(event) => setHistoryUserId(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') fetchBetHistory(historyUserId) }}
+            placeholder="Filter by user ID..."
+            aria-label="Filter chicken bet history by user ID"
+            className="w-48 rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 shadow-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
           <button
-            onClick={fetchBetHistory}
+            onClick={() => fetchBetHistory(historyUserId)}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1 text-xs font-bold text-white transition backdrop-blur-xs"
+            className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs transition cursor-pointer active:scale-95"
+            title="Refresh bet history from backend"
           >
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Refreshing...' : 'Refresh'}
+            <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
           </button>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 px-3 py-1 text-xs font-bold text-emerald-200">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-300 px-3.5 py-1.5 text-xs font-bold text-emerald-800 shadow-2xs">
+            <ShieldCheck size={13} className="text-emerald-600" />
             Realtime Audit Log
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-300 px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-xs">
             {rows.length} Total Sessions
           </span>
         </div>
@@ -1160,14 +1572,15 @@ export function ChickenBetValues() {
           <button
             onClick={fetchBetValues}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-2 text-xs font-bold text-white transition backdrop-blur-xs"
+            className="flex items-center gap-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 px-3.5 py-2 text-xs font-bold text-slate-800 shadow-xs transition cursor-pointer active:scale-95"
+            title="Sync bet values with live engine"
           >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Syncing...' : 'Sync Live'}
+            <RefreshCw size={13} className={`text-blue-600 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Syncing...' : 'Sync Live'}</span>
           </button>
           <button
             onClick={() => setAdd(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-bold text-blue-600 shadow-md hover:bg-blue-50 transition"
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer active:scale-95"
           >
             <Plus size={15} /> Add New Chip
           </button>
@@ -1407,17 +1820,18 @@ export function ChickenAmountSetup() {
           <button
             onClick={fetchRules}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-3.5 py-2 text-xs font-bold text-white transition backdrop-blur-xs"
+            className="flex items-center gap-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 px-3.5 py-2 text-xs font-bold text-slate-800 shadow-xs transition cursor-pointer active:scale-95"
+            title="Sync rules with live engine"
           >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Syncing...' : 'Sync Live'}
+            <RefreshCw size={13} className={`text-blue-600 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Syncing...' : 'Sync Live'}</span>
           </button>
           <button
             onClick={handleSaveAll}
             disabled={saving}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2 text-xs font-bold text-white shadow-lg hover:from-emerald-600 hover:to-teal-700 transition"
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:from-emerald-700 hover:to-teal-700 transition cursor-pointer active:scale-95"
           >
-            <Save size={15} /> {saving ? 'Saving...' : 'Save All Engine Settings'}
+            <Save size={15} /> <span>{saving ? 'Saving...' : 'Save All Engine Settings'}</span>
           </button>
         </div>
       </PageBanner>

@@ -239,8 +239,7 @@ export default function Dashboard() {
     setApiError(null)
 
     try {
-      // Calls central /admin/dashboard?period=... via proxy with direct localhost fallback
-      const endpoint = `${API_ENDPOINTS.DASHBOARD_PROXY}?period=${periodKey}`
+      const endpoint = `${API_ENDPOINTS.DASHBOARD}?period=${periodKey}`
       console.log(`[Veronova Dashboard] Fetching data for period ${periodKey} from:`, endpoint)
 
       const json = await apiRequest(endpoint, { method: 'GET' })
@@ -260,10 +259,8 @@ export default function Dashboard() {
         throw new Error(json?.message || 'Unexpected response format')
       }
     } catch (err) {
-      console.warn('[Veronova Dashboard] Dashboard sync failed or session out. Redirecting to /login:', err.message)
-      auth.clearAuth()
-      window.location.href = '/login'
-      return
+      console.warn('[Veronova Dashboard] Dashboard data request failed:', err.message)
+      setApiError(err.message || 'Dashboard data could not be loaded.')
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)

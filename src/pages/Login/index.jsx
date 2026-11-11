@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { ROUTES } from '@/constants/routes'
 import auth from '@/utils/auth'
-import { API_ENDPOINTS, BACKEND_BASE_URL } from '@/constants/api'
+import { API_ENDPOINTS } from '@/constants/api'
 import loginPhoneImg from '@/assets/assets 2/login/image.png'
 
 // Veronova Crown Logo matching the exact reference design
@@ -61,7 +61,7 @@ export default function Login() {
   const [activeSession, setActiveSession] = useState(() => auth.isAuthenticated())
   const activeUser = auth.getUser()
 
-  // Submit Handler calling local backend /api/login (port 3000)
+  // Submit Handler calling the configured Wingo4all backend
   const handleLogin = async (e) => {
     e?.preventDefault()
     setErrorMessage('')
@@ -82,38 +82,46 @@ export default function Login() {
     const isEmail = trimmedInput.includes('@')
     const isNumeric = /^\d{7,15}$/.test(trimmedInput)
 
-    // Build intelligent payloads based on user input format to avoid 400 Bad Request
-    const candidatePayloads = []
-    if (isEmail) {
-      candidatePayloads.push({ email: trimmedInput, password })
-      candidatePayloads.push({ username: trimmedInput, password })
-    } else if (isNumeric) {
-      candidatePayloads.push({ mobile: trimmedInput, password })
-      candidatePayloads.push({ phone: trimmedInput, password })
-      candidatePayloads.push({ username: trimmedInput, password })
-    } else {
-      candidatePayloads.push({ username: trimmedInput, password })
-      candidatePayloads.push({ user_name: trimmedInput, password })
-      candidatePayloads.push({ email: trimmedInput, password })
-      candidatePayloads.push({ mobile: trimmedInput, password })
-    }
-    // Universal fallback payload
-    candidatePayloads.push({
-      username: trimmedInput,
-      email: trimmedInput,
-      mobile: trimmedInput,
-      password,
-    })
+    // Backend login candidates - matches exact API requirements
+    const candidatePayloads = [
+      // 1. Primary mobile + country_code payload format
+      ...(isNumeric
+        ? [{ mobile: trimmedInput, password, country_code: '91' }]
+        : []),
+      // 2. Identity payload format
+      { identity: trimmedInput, password },
+      // 3. Email / username standard formats
+      ...(isEmail
+        ? [{ email: trimmedInput, password, identity: trimmedInput }]
+        : [{ username: trimmedInput, password, identity: trimmedInput }]),
+      // 4. Combined fallback payload
+      {
+        identity: trimmedInput,
+        username: trimmedInput,
+        email: trimmedInput,
+        mobile: trimmedInput,
+        country_code: '91',
+        password,
+      },
+    ]
 
-    // Target endpoints centrally managed via Vite proxy - avoids all CORS restrictions
+    // Prefer the configured backend login endpoints
     const targetEndpoints = [
-      API_ENDPOINTS.LOGIN_PROXY, // '/api/login' proxied by Vite
-      API_ENDPOINTS.ADMIN_LOGIN_PROXY, // '/api/admin/login' proxied by Vite
-      '/admin/login',
+      API_ENDPOINTS.LOGIN,
+      '/api/login',
+      API_ENDPOINTS.ADMIN_LOGIN_PROXY,
     ]
 
     let authenticated = false
     let lastError = null
+
+    const getErrorMessage = (value) => {
+      if (typeof value === 'string') return value
+      if (value && typeof value === 'object') {
+        return value.message || value.error || value.msg || JSON.stringify(value)
+      }
+      return value == null ? '' : String(value)
+    }
 
     endpointLoop: for (const url of targetEndpoints) {
       for (const payload of candidatePayloads) {
@@ -128,48 +136,62 @@ export default function Login() {
             body: JSON.stringify(payload),
           })
 
-          const data = await response.json().catch(() => null)
+          const responseText = await response.text()
+          let data = null
+          try {
+            data = responseText ? JSON.parse(responseText) : null
+          } catch {
+            data = responseText
+          }
           console.log(`[Veronova Login] Response from ${url}:`, response.status, data)
 
-          if (
+          const responseStatus = Number(data?.status)
+          const hasResponseBody = responseText.trim().length > 0
+          const isBusinessSuccess =
             response.ok &&
-            (data?.status === true ||
-              data?.status === 200 ||
-              data?.success === true ||
-              data?.token ||
-              data?.data?.token ||
-              data?.accessToken ||
-              data?.access_token ||
-              response.status === 200)
-          ) {
-            // Extract real token from all possible backend structures
-            const token =
-              data?.token ||
-              data?.access_token ||
-              data?.accessToken ||
-              data?.jwt ||
-              data?.bearer_token ||
-              data?.data?.token ||
-              data?.data?.access_token ||
-              data?.data?.accessToken ||
-              data?.data?.jwt ||
-              data?.data?.bearer_token ||
-              data?.data?.authorisation?.token ||
-              data?.data?.authorization?.token ||
-              data?.authorisation?.token ||
-              data?.authorization?.token ||
-              `veronova_session_${Date.now()}`
+            hasResponseBody &&
+            data !== null &&
+            data?.success !== false &&
+            data?.status !== false &&
+            ![400, 401, 422].includes(responseStatus)
 
+          // Extract real token from all possible backend structures
+          const token =
+            data?.admin_token ||
+            data?.adminToken ||
+            data?.token ||
+            data?.access_token ||
+            data?.accessToken ||
+            data?.jwt ||
+            data?.bearer_token ||
+            data?.data?.admin_token ||
+            data?.data?.adminToken ||
+            data?.data?.token ||
+            data?.data?.access_token ||
+            data?.data?.accessToken ||
+            data?.data?.jwt ||
+            data?.data?.bearer_token ||
+            data?.data?.authorisation?.token ||
+            data?.data?.authorization?.token ||
+            data?.authorisation?.token ||
+            data?.authorization?.token
+
+          const loginToken =
+            data?.login_token ||
+            data?.data?.login_token ||
+            data?.data?.token_login ||
+            null
+
+          if (isBusinessSuccess && token) {
             const userData =
               data?.user ||
               data?.data?.user ||
               data?.data?.admin ||
               data?.admin ||
               data?.data ||
-              { username: trimmedInput, role: 'Super Admin', permissions: 'ALL' }
+              { username: trimmedInput, role: 'Administrator' }
 
-            auth.setAuth(token, userData)
-            console.log('[Veronova Login] Authenticated & token saved to storage:', token)
+            auth.setAuth(token, userData, loginToken)
             setSuccessMessage('Admin authentication successful! Redirecting to dashboard...')
             authenticated = true
 
@@ -177,25 +199,27 @@ export default function Login() {
               navigate(ROUTES.DASHBOARD, { replace: true })
             }, 350)
             break endpointLoop
-          } else if (response.status === 400 || response.status === 401 || response.status === 422) {
-            // If backend returned specific validation or credential error, save it
-            lastError = data?.message || data?.error || data?.msg || `HTTP ${response.status}: Invalid credentials`
+          } else {
+            // Surface backend validation and credential errors instead of masking them.
+            lastError = getErrorMessage(data?.message || data?.error || data?.msg) ||
+              `HTTP ${response.status}: Invalid credentials`
           }
         } catch (err) {
           console.warn(`[Veronova Login] ${url} error:`, err.message)
-          lastError = err?.message
+          lastError = getErrorMessage(err?.message || err)
         }
       }
     }
 
     if (!authenticated) {
-      if (lastError && (lastError.includes('Failed to fetch') || lastError.includes('NetworkError'))) {
+      const normalizedError = getErrorMessage(lastError)
+      if (normalizedError.includes('Failed to fetch') || normalizedError.includes('NetworkError')) {
         setErrorMessage(
-          'Could not connect to backend at http://localhost:3000/api/login. Please verify backend is running on port 3000, or use "Active Dev Bypass" below.'
+          `Could not connect to backend ${API_ENDPOINTS.BACKEND_BASE_URL}. Please try again shortly.`
         )
       } else {
         setErrorMessage(
-          lastError || 'Invalid username, mobile, or password. Please verify your admin credentials.'
+          normalizedError || 'Invalid username, mobile, or password. Please verify your admin credentials.'
         )
       }
       setIsLoading(false)
@@ -209,21 +233,9 @@ export default function Login() {
     setErrorMessage('')
   }
 
-  // Dev bypass for instant testing
-  const handleDevBypass = () => {
-    auth.setAuth(`dev_token_${Date.now()}`, {
-      username: username || 'admin',
-      role: 'Super Administrator',
-      isDevBypass: true,
-    })
-    setSuccessMessage('Active Admin Session established. Welcome!')
-    setTimeout(() => {
-      navigate(ROUTES.DASHBOARD, { replace: true })
-    }, 300)
-  }
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#f8faff] via-[#eaf2fc] to-[#dbe8fa] font-sans text-slate-800 p-4 sm:p-6 lg:p-10 select-none">
+    <div className="relative min-h-screen w-full flex items-center justify-center overflow-x-hidden overflow-y-auto bg-gradient-to-br from-[#f8faff] via-[#eaf2fc] to-[#dbe8fa] font-sans text-slate-800 p-3 sm:p-6 lg:p-10 select-none">
       {/* Silky Wave Background Layers matching the reference design */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {/* Soft radial glow points */}
@@ -264,9 +276,9 @@ export default function Login() {
       </div>
 
       {/* Main Content Layout Container */}
-      <div className="relative z-10 w-full max-w-[1340px] mx-auto min-h-[640px] flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-6 py-4">
-        {/* LEFT COLUMN: Logo, Headline, 4 Feature Items & Bottom Stats Card */}
-        <div className="w-full lg:max-w-[480px] xl:max-w-[510px] flex flex-col justify-between z-10">
+      <div className="relative z-10 w-full max-w-[1340px] mx-auto flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-8 py-3 sm:py-6">
+        {/* LEFT COLUMN: Logo, Headline, 4 Feature Items & Bottom Stats Card (Desktop Only) */}
+        <div className="hidden lg:flex w-full lg:max-w-[480px] xl:max-w-[510px] flex-col justify-between z-10">
           <div>
             {/* Top Brand Logo */}
             <div className="flex items-center gap-3.5 mb-6 sm:mb-8">
@@ -391,8 +403,7 @@ export default function Login() {
           </div>
         </div>
 
-        {/* CENTER: 3D Artwork Phone Showcase */}
-        {/* Positioned between left feature list and right login card on desktop */}
+        {/* CENTER: 3D Artwork Phone Showcase (Desktop Only) */}
         <div className="hidden lg:flex absolute left-[38%] xl:left-[43%] top-1/2 -translate-y-1/2 -translate-x-1/2 w-[510px] xl:w-[620px] pointer-events-none z-0 justify-center items-center">
           <img
             src={loginPhoneImg}
@@ -401,9 +412,9 @@ export default function Login() {
           />
         </div>
 
-        {/* RIGHT COLUMN: Interactive Login Card */}
-        <div className="w-full lg:w-[410px] xl:w-[430px] shrink-0 z-10 flex justify-center lg:justify-end">
-          <div className="w-full rounded-[30px] bg-white p-7 sm:p-9 shadow-[0_20px_60px_-10px_rgba(20,60,140,0.13),0_0_1px_1px_rgba(255,255,255,1)] border border-white transition-all">
+        {/* RIGHT COLUMN: Interactive Login Card (Mobile First & Fully Responsive) */}
+        <div className="w-full max-w-[420px] lg:w-[410px] xl:w-[430px] shrink-0 z-10 mx-auto lg:mr-0 flex flex-col items-center">
+          <div className="w-full rounded-2xl sm:rounded-[30px] bg-white p-5 sm:p-8 shadow-[0_20px_60px_-10px_rgba(20,60,140,0.13),0_0_1px_1px_rgba(255,255,255,1)] border border-white transition-all">
             {/* Card Brand Header */}
             <div className="text-center mb-6">
               <div className="inline-flex flex-col items-center justify-center mb-2.5">
@@ -488,7 +499,7 @@ export default function Login() {
                     placeholder="Enter your username or email"
                     autoComplete="username"
                     required
-                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-10 pr-4 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#1d68ff] focus:ring-4 focus:ring-blue-500/10 focus:outline-hidden transition-all shadow-2xs font-medium"
+                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-10 pr-4 py-3 sm:py-2.5 text-base sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#1d68ff] focus:ring-4 focus:ring-blue-500/10 focus:outline-hidden transition-all shadow-2xs font-medium"
                   />
                 </div>
               </div>
@@ -509,7 +520,7 @@ export default function Login() {
                     placeholder="Enter your password"
                     autoComplete="current-password"
                     required
-                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-10 pr-11 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#1d68ff] focus:ring-4 focus:ring-blue-500/10 focus:outline-hidden transition-all shadow-2xs font-medium"
+                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-10 pr-11 py-3 sm:py-2.5 text-base sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#1d68ff] focus:ring-4 focus:ring-blue-500/10 focus:outline-hidden transition-all shadow-2xs font-medium"
                   />
                   <button
                     type="button"
@@ -578,15 +589,9 @@ export default function Login() {
             {/* Need help? Contact Support */}
             <div className="text-center text-xs font-medium text-slate-500">
               Need help?{' '}
-              <button
-                type="button"
-                onClick={handleDevBypass}
-                className="font-bold text-[#1d68ff] hover:underline transition inline-flex items-center gap-1 cursor-pointer"
-                title="Click for fast local development bypass"
-              >
-                <span>Contact Support</span>
-                <Sparkles size={11} className="text-[#1d68ff]" />
-              </button>
+              <span className="font-semibold text-slate-600">
+                Contact your Super Administrator
+              </span>
             </div>
           </div>
         </div>

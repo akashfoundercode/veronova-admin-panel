@@ -5,6 +5,7 @@ export const initialIllegalUsers = [
     id: 1,
     user_id: 'SUSP9901',
     user_name: 'Hedger_King',
+    game_name: 'Colour Prediction (Wingo 1M)',
     email: 'hedger99@proton.me',
     mobile: '7968676675',
     ip_address: '103.214.62.11',
@@ -27,6 +28,7 @@ export const initialIllegalUsers = [
     id: 2,
     user_id: 'BOT_4410',
     user_name: 'RapidScript_Bot',
+    game_name: 'Aviator Crash',
     email: 'bot4410@shadow.net',
     mobile: '9368117311',
     ip_address: '45.118.132.88',
@@ -48,6 +50,7 @@ export const initialIllegalUsers = [
     id: 3,
     user_id: 'VN_77180',
     user_name: 'Syndicate_Alpha',
+    game_name: 'Horse-Riding',
     email: 'alpha77@gmail.com',
     mobile: '8755741645',
     ip_address: '157.48.21.90',
@@ -68,6 +71,7 @@ export const initialIllegalUsers = [
     id: 4,
     user_id: 'VZPH8680',
     user_name: 'User_L13HY',
+    game_name: 'Chicken Road Game',
     email: 'l13hy@veronova.io',
     mobile: '7800302707',
     ip_address: '106.195.40.15',
@@ -88,6 +92,7 @@ export const initialIllegalUsers = [
     id: 5,
     user_id: 'WIN_ANOM_02',
     user_name: 'LuckyStreak_99',
+    game_name: 'Aviator Crash',
     email: 'lucky99@outlook.com',
     mobile: '8090145106',
     ip_address: '117.211.89.34',
@@ -108,6 +113,7 @@ export const initialIllegalUsers = [
     id: 6,
     user_id: 'PROXY_USER_9',
     user_name: 'VpnExplorer_X',
+    game_name: 'Colour Prediction (Wingo 30S)',
     email: 'vpn@hide.me',
     mobile: '9336193591',
     ip_address: '194.26.29.112',
@@ -120,7 +126,7 @@ export const initialIllegalUsers = [
     status: 'Cleared',
     flagged_at: '09-07-2026 03:45 PM',
     bets: [
-      { id: 'BET_43210', game: 'Colour Prediction', round_id: '#2026070940', choice: 'Red (₹1,500)', conflict: 'Datacenter Proxy Flag', amount: 1500, date: '09-07-2026 03:40 PM', ip: '194.26.29.112' },
+      { id: 'BET_43210', game: 'Colour Prediction (Wingo 30S)', round_id: '#2026070940', choice: 'Red (₹1,500)', conflict: 'Datacenter Proxy Flag', amount: 1500, date: '09-07-2026 03:40 PM', ip: '194.26.29.112' },
     ],
   },
 ]
@@ -201,6 +207,25 @@ export function normalizeIllegalUser(raw, idx = 0) {
   // Violation type
   const violation = raw.violation_type || raw.violation || raw.reason || 'Opposite Betting (Hedging)'
 
+  // Game Name resolution
+  const resolveGameName = (r) => {
+    if (r.game_name) return r.game_name
+    if (r.game) return r.game
+    if (r.gameName) return r.gameName
+    if (r.game_title) return r.game_title
+    if (Array.isArray(r.bets) && r.bets[0]?.game) return r.bets[0].game
+    const gId = String(r.game_id || r.gameId || '')
+    if (gId === '1') return 'Colour Prediction (Wingo 30S)'
+    if (gId === '2') return 'Colour Prediction (Wingo 1M)'
+    if (gId === '3') return 'Colour Prediction (Wingo 3M)'
+    if (gId === '4') return 'Colour Prediction (Wingo 5M)'
+    if (gId.toLowerCase().includes('aviator') || gId === '5') return 'Aviator Crash'
+    if (gId.toLowerCase().includes('horse') || gId === '6') return 'Horse-Riding'
+    if (gId.toLowerCase().includes('chicken') || gId === '7') return 'Chicken Road Game'
+    return 'Colour Prediction (Wingo)'
+  }
+  const gameName = resolveGameName(raw)
+
   // Status
   let status = 'Under Review'
   const rawStatus = String(raw.status || '').toLowerCase()
@@ -214,7 +239,7 @@ export function normalizeIllegalUser(raw, idx = 0) {
   const bets = Array.isArray(raw.bets) && raw.bets.length > 0 ? raw.bets : [
     {
       id: `BET_${Math.floor(10000 + Math.random() * 90000)}`,
-      game: 'Colour Prediction (Wingo 1M)',
+      game: gameName,
       round_id: `#${new Date().getFullYear()}0701`,
       choice: 'Hedging pattern detected',
       conflict: violation,
@@ -228,6 +253,7 @@ export function normalizeIllegalUser(raw, idx = 0) {
     id,
     user_id: userId,
     user_name: userName,
+    game_name: gameName,
     email: raw.email || (raw.username ? `${raw.username.toLowerCase()}@veronova.com` : 'user@veronova.com'),
     mobile: mobileStr,
     ip_address: raw.ip_address || raw.ip || raw.last_ip || '103.214.62.11',
